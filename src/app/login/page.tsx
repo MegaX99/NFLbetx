@@ -1,14 +1,86 @@
+"use client";
+
+import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase";
+
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const supabase = createClient();
+
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/account` },
+        });
+        if (error) throw error;
+
+        if (data.session) {
+          router.push("/account");
+          router.refresh();
+        } else {
+          setMessage("Check your email to confirm your new NFLbetx account.");
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        router.push("/account");
+        router.refresh();
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12">
       <div className="panel w-full p-7">
-        <div className="grid h-12 w-12 place-items-center rounded-xl bg-lime-400 font-black">NX</div>
-        <h1 className="mt-5 text-3xl font-black tracking-tight">Welcome back</h1>
-        <p className="mt-2 text-sm text-slate-500">Sign-in will activate when your Supabase keys are added.</p>
-        <form className="mt-6 space-y-4">
-          <label className="block text-sm font-bold">Email<input type="email" placeholder="you@example.com" className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-300" /></label>
-          <label className="block text-sm font-bold">Password<input type="password" placeholder="••••••••" className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-300" /></label>
-          <button type="button" className="w-full rounded-xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-800">Sign in</button>
+        <Link href="/" className="grid h-12 w-12 place-items-center rounded-xl bg-lime-400 font-black">NX</Link>
+        <h1 className="mt-5 text-3xl font-black tracking-tight">{mode === "signin" ? "Welcome back" : "Join NFLbetx"}</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          {mode === "signin" ? "Sign in to make and manage your weekly picks." : "Create your account to join a pool and start picking."}
+        </p>
+
+        <div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+          <button type="button" onClick={() => { setMode("signin"); setMessage(""); }}
+            className={`rounded-lg px-3 py-2 text-sm font-bold ${mode === "signin" ? "bg-white shadow-sm" : "text-slate-500"}`}>Sign in</button>
+          <button type="button" onClick={() => { setMode("signup"); setMessage(""); }}
+            className={`rounded-lg px-3 py-2 text-sm font-bold ${mode === "signup" ? "bg-white shadow-sm" : "text-slate-500"}`}>Create account</button>
+        </div>
+
+        <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+          <label className="block text-sm font-bold">
+            Email
+            <input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com" className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-300" />
+          </label>
+          <label className="block text-sm font-bold">
+            Password
+            <input type="password" required minLength={6} autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              value={password} onChange={(event) => setPassword(event.target.value)}
+              placeholder="At least 6 characters" className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-300" />
+          </label>
+          {message && <p role="status" className="rounded-xl bg-slate-100 px-4 py-3 text-sm leading-5 text-slate-700">{message}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full rounded-xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60">
+            {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+          </button>
         </form>
       </div>
     </main>
