@@ -13,6 +13,9 @@ export type Game = {
   status: string;
   away_score: number | null;
   home_score: number | null;
+  odds_event_id: string | null;
+  spread_source: string | null;
+  spread_updated_at: string | null;
 };
 
 const names: Record<string, string> = {
