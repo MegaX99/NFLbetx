@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 1.9 seconds
+Output:
 "use client";
 
 import type { Game, PickSide } from "@/lib/picks";
@@ -43,8 +46,8 @@ export function GameCard({ game, selected, saving, locked, onPick }: {
   onPick: (side: PickSide) => void;
 }) {
   const awaySpread = game.home_spread * -1;
-  const awayLine = awaySpread > 0 ? `+${awaySpread}` : `${awaySpread}`;
-  const homeLine = game.home_spread > 0 ? `+${game.home_spread}` : `${game.home_spread}`;
+  const awayLine = awaySpread === 0 ? "PK" : awaySpread > 0 ? `+${awaySpread}` : `${awaySpread}`;
+  const homeLine = game.home_spread === 0 ? "PK" : game.home_spread > 0 ? `+${game.home_spread}` : `${game.home_spread}`;
   const kickoff = new Intl.DateTimeFormat("en-US", {
     weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   }).format(new Date(game.kickoff_at));
@@ -54,7 +57,7 @@ export function GameCard({ game, selected, saving, locked, onPick }: {
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{kickoff}</p>
         <span className={`text-xs font-semibold ${locked ? "text-amber-700" : "text-slate-400"}`}>
-          {saving ? "Saving…" : locked ? "Locked" : selected ? "Saved" : "Open"}
+          {saving ? "Savingâ€¦" : locked ? "Locked" : selected ? "Saved" : "Open"}
         </span>
       </div>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
@@ -65,3 +68,4 @@ export function GameCard({ game, selected, saving, locked, onPick }: {
     </article>
   );
 }
+
