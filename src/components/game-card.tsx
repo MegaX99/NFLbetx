@@ -1,6 +1,3 @@
-Exit code: 0
-Wall time: 1.9 seconds
-Output:
 "use client";
 
 import type { Game, PickSide } from "@/lib/picks";
