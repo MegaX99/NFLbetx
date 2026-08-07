@@ -63,9 +63,10 @@ export function GameCard({ game, selected, saving, locked, onPick }: {
   locked: boolean;
   onPick: (side: PickSide) => void;
 }) {
+  const linePending = !game.spread_source;
   const awaySpread = game.home_spread * -1;
-  const awayLine = awaySpread === 0 ? "PK" : awaySpread > 0 ? `+${awaySpread}` : `${awaySpread}`;
-  const homeLine = game.home_spread === 0 ? "PK" : game.home_spread > 0 ? `+${game.home_spread}` : `${game.home_spread}`;
+  const awayLine = linePending ? "TBD" : awaySpread === 0 ? "PK" : awaySpread > 0 ? `+${awaySpread}` : `${awaySpread}`;
+  const homeLine = linePending ? "TBD" : game.home_spread === 0 ? "PK" : game.home_spread > 0 ? `+${game.home_spread}` : `${game.home_spread}`;
   const kickoff = new Intl.DateTimeFormat("en-US", {
     weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   }).format(new Date(game.kickoff_at));
@@ -74,14 +75,17 @@ export function GameCard({ game, selected, saving, locked, onPick }: {
     <article className="panel p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{kickoff}</p>
-        <span className={`text-xs font-semibold ${locked ? "text-amber-700" : "text-slate-400"}`}>
-          {saving ? "Savingâ€¦" : locked ? "Locked" : selected ? "Saved" : "Open"}
-        </span>
+        <div className="flex items-center gap-2 text-xs font-semibold">
+          {game.spread_source && <span className="text-slate-400">{game.spread_source} line</span>}
+          <span className={locked || linePending ? "text-amber-700" : "text-slate-400"}>
+            {saving ? "Savingâ€¦" : linePending ? "Line pending" : locked ? "Locked" : selected ? "Saved" : "Open"}
+          </span>
+        </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-        <TeamButton name={teamName(game.away_team)} code={game.away_team} line={awayLine} selected={selected === "away"} disabled={locked || saving} onClick={() => onPick("away")} />
+        <TeamButton name={teamName(game.away_team)} code={game.away_team} line={awayLine} selected={selected === "away"} disabled={locked || linePending || saving} onClick={() => onPick("away")} />
         <span className="text-center text-xs font-black text-slate-300">AT</span>
-        <TeamButton name={teamName(game.home_team)} code={game.home_team} line={homeLine} selected={selected === "home"} disabled={locked || saving} onClick={() => onPick("home")} />
+        <TeamButton name={teamName(game.home_team)} code={game.home_team} line={homeLine} selected={selected === "home"} disabled={locked || linePending || saving} onClick={() => onPick("home")} />
       </div>
     </article>
   );
