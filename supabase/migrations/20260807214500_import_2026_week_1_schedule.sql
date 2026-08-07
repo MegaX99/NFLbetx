@@ -1,6 +1,3 @@
-Exit code: 0
-Wall time: 2 seconds
-Output:
 -- Replace the three temporary test games with the official 2026 Week 1 schedule.
 -- Matchups and kickoff times verified against NFL.com on 2026-08-07.
 
