@@ -1,0 +1,157 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { GameCard } from "@/components/game-card";
+import { WeekHeader } from "@/components/week-header";
+import { createClient } from "@/lib/supabase";
+import { DEFAULT_POOL_ID, type Game, type PickSide } from "@/lib/picks";
+
+type PickMap = Record<string, PickSide>;
+
+export function PicksDashboard() {
+  const [games, setGames] = useState<Game[]>([]);
+  const [picks, setPicks] = useState<PickMap>({});
+  const [entryId, setEntryId] = useState<string | null>(null);
+  const [signedIn, setSignedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [savingGame, setSavingGame] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      setNow(Date.now());
+      const supabase = createClient();
+      const { data: gameRows, error: gameError } = await supabase
+        .from("games")
+        .select("id,season,week,away_team,home_team,kickoff_at,home_spread,status,away_score,home_score")
+        .eq("season", 2026)
+        .eq("week", 1)
+        .order("kickoff_at");
+
+      if (!active) return;
+      if (gameError) setNotice(gameError.message);
+      setGames((gameRows ?? []) as Game[]);
+
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData.user;
+      setSignedIn(Boolean(user));
+
+      if (user) {
+        const { data: entry, error: entryError } = await supabase
+          .from("entries")
+          .select("id")
+          .eq("pool_id", DEFAULT_POOL_ID)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!active) return;
+        if (entryError) setNotice(entryError.message);
+        if (entry) {
+          setEntryId(entry.id);
+          const { data: savedPicks, error: pickError } = await supabase
+            .from("picks")
+            .select("game_id,selected_side")
+            .eq("entry_id", entry.id);
+
+          if (!active) return;
+          if (pickError) setNotice(pickError.message);
+          const next: PickMap = {};
+          for (const pick of savedPicks ?? []) next[pick.game_id] = pick.selected_side as PickSide;
+          setPicks(next);
+        }
+      }
+
+      setLoading(false);
+    }
+
+    load();
+    return () => { active = false; };
+  }, []);
+
+  const completed = Object.keys(picks).length;
+  const firstKickoff = useMemo(() => games[0]?.kickoff_at, [games]);
+
+  async function savePick(gameId: string, side: PickSide) {
+    if (!signedIn || !entryId) {
+      setNotice("Sign in before making picks so they can be saved.");
+      return;
+    }
+
+    const previous = picks[gameId];
+    setPicks((current) => ({ ...current, [gameId]: side }));
+    setSavingGame(gameId);
+    setNotice("");
+
+    const { error } = await createClient().from("picks").upsert(
+      { entry_id: entryId, game_id: gameId, selected_side: side },
+      { onConflict: "entry_id,game_id" },
+    );
+
+    if (error) {
+      setPicks((current) => {
+        const next = { ...current };
+        if (previous) next[gameId] = previous;
+        else delete next[gameId];
+        return next;
+      });
+      setNotice(error.message);
+    }
+    setSavingGame(null);
+  }
+
+  return (
+    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+      <section className="grid gap-8 lg:grid-cols-[1fr_320px]">
+        <div>
+          <WeekHeader firstKickoff={firstKickoff} />
+          {loading ? (
+            <div className="panel mt-6 p-8 text-center text-slate-500">Loading Week 1…</div>
+          ) : games.length ? (
+            <div className="mt-6 space-y-4">
+              {games.map((game) => (
+                <GameCard key={game.id} game={game} selected={picks[game.id] ?? null} saving={savingGame === game.id} locked={new Date(game.kickoff_at).getTime() <= now} onPick={(side) => savePick(game.id, side)} />
+              ))}
+            </div>
+          ) : (
+            <div className="panel mt-6 p-8 text-center text-slate-500">No games are available for this week yet.</div>
+          )}
+        </div>
+
+        <aside className="space-y-4">
+          <div className="panel p-6">
+            <p className="eyebrow">Your week</p>
+            <div className="mt-4 flex items-end justify-between">
+              <div><span className="text-4xl font-black">{completed}</span><span className="text-slate-400"> / {games.length} picks</span></div>
+              <span className="rounded-full bg-lime-100 px-3 py-1 text-xs font-bold text-lime-800">SAVED</span>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full bg-lime-500 transition-all" style={{ width: games.length ? `${(completed / games.length) * 100}%` : "0%" }} />
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-500">Each selection is saved immediately and stays in your history after the week closes.</p>
+          </div>
+
+          {!signedIn && (
+            <div className="panel border-amber-200 bg-amber-50 p-6">
+              <p className="font-black text-amber-950">Sign in to save picks</p>
+              <p className="mt-2 text-sm leading-6 text-amber-800">You can view the schedule now, but an account is required to make selections.</p>
+              <Link href="/login" className="mt-4 inline-flex rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white">Sign in</Link>
+            </div>
+          )}
+
+          {notice && <p role="status" className="panel border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{notice}</p>}
+
+          <div className="panel overflow-hidden bg-slate-950 p-6 text-white">
+            <p className="eyebrow text-lime-400">Pick archive</p>
+            <p className="mt-4 text-xl font-black">Your selections, week by week</p>
+            <p className="mt-2 text-sm leading-6 text-slate-400">Review saved picks and results from every completed week.</p>
+            <Link href="/history" className="mt-5 inline-flex text-sm font-bold text-lime-400 hover:text-lime-300">View pick history →</Link>
+          </div>
+        </aside>
+      </section>
+    </main>
+  );
+}

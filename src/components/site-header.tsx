@@ -10,6 +10,7 @@ export function SiteHeader() {
         </Link>
         <nav className="flex items-center gap-4 text-sm font-bold text-slate-600 sm:gap-7" aria-label="Main navigation">
           <Link href="/" className="hover:text-slate-950">Picks</Link>
+          <Link href="/history" className="hover:text-slate-950">History</Link>
           <Link href="/standings" className="hover:text-slate-950">Standings</Link>
           <Link href="/rules" className="hidden hover:text-slate-950 sm:block">Rules</Link>
           <Link href="/account" className="rounded-lg bg-slate-950 px-4 py-2 text-white hover:bg-slate-800">Account</Link>
