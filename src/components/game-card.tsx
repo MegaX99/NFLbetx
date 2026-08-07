@@ -1,7 +1,30 @@
 "use client";
 
+import Image from "next/image";
+import { useState } from "react";
 import type { Game, PickSide } from "@/lib/picks";
-import { teamName } from "@/lib/picks";
+import { teamLogoUrl, teamName } from "@/lib/picks";
+
+function TeamLogo({ code }: { code: string }) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  return (
+    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+      {imageFailed ? (
+        <span className="text-xs font-black text-slate-600">{code}</span>
+      ) : (
+        <Image
+          src={teamLogoUrl(code)}
+          alt=""
+          width={44}
+          height={44}
+          className="h-11 w-11 object-contain p-1"
+          onError={() => setImageFailed(true)}
+        />
+      )}
+    </span>
+  );
+}
 
 function TeamButton({ name, code, line, selected, disabled, onClick }: {
   name: string;
@@ -23,9 +46,7 @@ function TeamButton({ name, code, line, selected, disabled, onClick }: {
           : "border-slate-200 hover:border-slate-400"
       } disabled:cursor-not-allowed disabled:opacity-60`}
     >
-      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg text-xs font-black ${selected ? "bg-lime-500 text-slate-950" : "bg-slate-100 text-slate-700"}`}>
-        {code}
-      </span>
+      <TeamLogo code={code} />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-bold text-slate-950">{name}</span>
         <span className="text-xs text-slate-400">{selected ? "Your pick" : "Select team"}</span>
