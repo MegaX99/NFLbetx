@@ -14,8 +14,10 @@ export function PicksDashboard() {
   const [picks, setPicks] = useState<PickMap>({});
   const [entryId, setEntryId] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
+  const [isCommissioner, setIsCommissioner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savingGame, setSavingGame] = useState<string | null>(null);
+  const [refreshingOdds, setRefreshingOdds] = useState(false);
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(0);
 
@@ -27,7 +29,7 @@ export function PicksDashboard() {
       const supabase = createClient();
       const { data: gameRows, error: gameError } = await supabase
         .from("games")
-        .select("id,season,week,away_team,home_team,kickoff_at,home_spread,status,away_score,home_score")
+        .select("id,season,week,away_team,home_team,kickoff_at,home_spread,status,away_score,home_score,odds_event_id,spread_source,spread_updated_at")
         .eq("season", 2026)
         .eq("week", 1)
         .order("kickoff_at");
@@ -41,6 +43,13 @@ export function PicksDashboard() {
       setSignedIn(Boolean(user));
 
       if (user) {
+        const { data: pool } = await supabase
+          .from("pools")
+          .select("commissioner_id")
+          .eq("id", DEFAULT_POOL_ID)
+          .maybeSingle();
+        setIsCommissioner(pool?.commissioner_id === user.id);
+
         const { data: entry, error: entryError } = await supabase
           .from("entries")
           .select("id")
@@ -103,13 +112,50 @@ export function PicksDashboard() {
     setSavingGame(null);
   }
 
+  async function refreshOdds() {
+    setRefreshingOdds(true);
+    setNotice("");
+
+    const supabase = createClient();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      setNotice("Please sign in again before updating point spreads.");
+      setRefreshingOdds(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/odds/refresh", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const result = await response.json() as {
+        message?: string;
+        updates?: Array<Pick<Game, "id" | "home_spread" | "spread_source" | "spread_updated_at">>;
+      };
+
+      if (!response.ok) throw new Error(result.message || "Point spreads could not be updated.");
+
+      if (result.updates?.length) {
+        const updates = new Map(result.updates.map((game) => [game.id, game]));
+        setGames((current) => current.map((game) => ({ ...game, ...updates.get(game.id) })));
+      }
+      setNotice(result.message || "BetMGM lines checked.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Point spreads could not be updated.");
+    } finally {
+      setRefreshingOdds(false);
+    }
+  }
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
       <section className="grid gap-8 lg:grid-cols-[1fr_320px]">
         <div>
           <WeekHeader firstKickoff={firstKickoff} />
           {loading ? (
-            <div className="panel mt-6 p-8 text-center text-slate-500">Loading Week 1…</div>
+            <div className="panel mt-6 p-8 text-center text-slate-500">Loading Week 1â€¦</div>
           ) : games.length ? (
             <div className="mt-6 space-y-4">
               {games.map((game) => (
@@ -142,16 +188,33 @@ export function PicksDashboard() {
             </div>
           )}
 
+          {isCommissioner && (
+            <div className="panel border-blue-200 bg-blue-50 p-6">
+              <p className="eyebrow text-blue-700">Commissioner</p>
+              <p className="mt-3 font-black text-blue-950">BetMGM point spreads</p>
+              <p className="mt-2 text-sm leading-6 text-blue-800">Import current Week 1 lines. A line freezes after the first pick on that game.</p>
+              <button
+                type="button"
+                onClick={refreshOdds}
+                disabled={refreshingOdds}
+                className="mt-4 w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
+              >
+                {refreshingOdds ? "Checking BetMGMâ€¦" : "Update BetMGM lines"}
+              </button>
+            </div>
+          )}
+
           {notice && <p role="status" className="panel border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{notice}</p>}
 
           <div className="panel overflow-hidden bg-slate-950 p-6 text-white">
             <p className="eyebrow text-lime-400">Pick archive</p>
             <p className="mt-4 text-xl font-black">Your selections, week by week</p>
             <p className="mt-2 text-sm leading-6 text-slate-400">Review saved picks and results from every completed week.</p>
-            <Link href="/history" className="mt-5 inline-flex text-sm font-bold text-lime-400 hover:text-lime-300">View pick history →</Link>
+            <Link href="/history" className="mt-5 inline-flex text-sm font-bold text-lime-400 hover:text-lime-300">View pick history â†’</Link>
           </div>
         </aside>
       </section>
     </main>
   );
 }
+
