@@ -6,8 +6,14 @@ Version 0.1 of a modern NFL against-the-spread pick'em pool.
 
 1. Install dependencies with `pnpm install`.
 2. Copy `.env.example` to `.env.local`.
-3. Add the Supabase project URL and anon key.
+3. Add the Supabase project URL and publishable key.
 4. Start with `pnpm dev`.
 
-The first release uses sample games and standings. Supabase authentication,
-database tables, and a live sports-data feed are prepared for the next milestone.
+## Supabase
+
+The initial database schema is versioned in `supabase/migrations`. It includes profiles,
+pools, pool memberships, multiple entries per user, NFL games, ATS picks, kickoff locking,
+and Row Level Security policies.
+
+The current preview still displays sample games and standings. Authentication and live
+database-backed pages are the next application milestone.
