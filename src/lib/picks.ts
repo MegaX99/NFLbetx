@@ -54,3 +54,8 @@ export function teamName(code: string) {
   return names[code] ?? code;
 }
 
+export function teamLogoUrl(code: string) {
+  const logoCode = code === "WAS" ? "wsh" : code.toLowerCase();
+  return `https://a.espncdn.com/i/teamlogos/nfl/500/${logoCode}.png`;
+}
+
