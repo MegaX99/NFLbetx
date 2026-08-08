@@ -121,7 +121,7 @@ with check (
   and exists (
     select 1
     from public.pools p
-    where p.id::text = (storage.foldername(name))[1]
+    where p.id::text = (storage.foldername(storage.objects.name))[1]
       and p.commissioner_id = (select auth.uid())
   )
 );
@@ -134,7 +134,7 @@ using (
   and exists (
     select 1
     from public.pools p
-    where p.id::text = (storage.foldername(name))[1]
+    where p.id::text = (storage.foldername(storage.objects.name))[1]
       and p.commissioner_id = (select auth.uid())
   )
 );
