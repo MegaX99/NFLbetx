@@ -130,7 +130,7 @@ export function PoolsDashboard() {
     setWorking(false);
   }
 
-  if (loading) return <main className="mx-auto w-full max-w-5xl px-4 py-12"><div className="panel p-8 text-center text-slate-500">Loading your poolsâ€¦</div></main>;
+  if (loading) return <main className="mx-auto w-full max-w-5xl px-4 py-12"><div className="panel p-8 text-center text-slate-500">Loading your pools...</div></main>;
 
   if (!user) return (
     <main className="mx-auto grid w-full max-w-xl flex-1 place-items-center px-4 py-12">
