@@ -45,7 +45,7 @@ export default function AccountPage() {
         <h1 className="mt-2 text-3xl font-black tracking-tight">Your NFLbetx account</h1>
 
         {loading ? (
-          <p className="mt-6 text-slate-500">Loading your accountâ€¦</p>
+          <p className="mt-6 text-slate-500">Loading your account...</p>
         ) : user ? (
           <div className="mt-6">
             <div className="rounded-xl bg-slate-50 p-5">
