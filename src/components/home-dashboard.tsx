@@ -22,9 +22,21 @@ export function HomeDashboard() {
 
   useEffect(() => {
     let active = true;
+    const supabase = createClient();
+
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    if (hashParams.get("type") === "recovery") {
+      window.location.replace(`/reset-password${window.location.hash}`);
+      return () => { active = false; };
+    }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (active && event === "PASSWORD_RECOVERY") {
+        window.location.replace("/reset-password");
+      }
+    });
 
     async function loadHome() {
-      const supabase = createClient();
       const { data: authData } = await supabase.auth.getUser();
       const currentUser = authData.user;
       if (!active) return;
@@ -73,7 +85,10 @@ export function HomeDashboard() {
     }
 
     loadHome();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const currentPool = pools[0] ?? null;
