@@ -9,6 +9,9 @@ type RecentUser = { id: string; display_name: string; created_at: string; pool_c
 type PoolSummary = { id: string; name: string; code: string; created_at: string; commissioner_name: string; member_count: number; entry_count: number };
 type Activity = { id: string; event_type: string; message: string; created_at: string; actor_name: string | null; subject_name: string | null; pool_name: string | null };
 type OwnerData = { metrics: Metrics; recent_users: RecentUser[]; pools: PoolSummary[]; activity: Activity[] };
+type AuthMetrics = { login_succeeded_7d: number; login_failed_7d: number; reset_requested_7d: number; password_changed_7d: number };
+type AuthActivity = { id: string; event_type: string; email_hint: string | null; created_at: string; display_name: string | null };
+type AuthData = { metrics: AuthMetrics; activity: AuthActivity[] };
 
 const labels: Record<string, string> = {
   user_created: "Account",
@@ -20,8 +23,16 @@ const labels: Record<string, string> = {
   member_removed: "Membership",
 };
 
+const authLabels: Record<string, string> = {
+  login_succeeded: "Login succeeded",
+  login_failed: "Login failed",
+  password_reset_requested: "Reset requested",
+  password_changed: "Password changed",
+};
+
 export function OwnerDashboard() {
   const [data, setData] = useState<OwnerData | null>(null);
+  const [authData, setAuthData] = useState<AuthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -30,9 +41,15 @@ export function OwnerDashboard() {
     const supabase = createClient();
     const { data: authData } = await supabase.auth.getUser();
     if (!authData.user) { setMessage("Sign in with the NFLbetx owner account."); setLoading(false); return; }
-    const { data: dashboard, error } = await supabase.rpc("get_owner_dashboard");
-    if (error) setMessage("This page is restricted to the NFLbetx owner.");
-    else setData(dashboard as OwnerData);
+    const [dashboardResult, authResult] = await Promise.all([
+      supabase.rpc("get_owner_dashboard"),
+      supabase.rpc("get_auth_activity"),
+    ]);
+    if (dashboardResult.error || authResult.error) setMessage("This page is restricted to the NFLbetx owner.");
+    else {
+      setData(dashboardResult.data as OwnerData);
+      setAuthData(authResult.data as AuthData);
+    }
     setLoading(false);
   }
 
@@ -66,6 +83,24 @@ export function OwnerDashboard() {
 
         <div className="panel p-6"><p className="eyebrow">Growth</p><h2 className="mt-2 text-2xl font-black">Newest users</h2><div className="mt-5 divide-y divide-slate-100">{data.recent_users.map((user) => <div key={user.id} className="flex items-center justify-between gap-4 py-3"><div><p className="font-bold">{user.display_name}</p><p className="text-xs text-slate-400">Joined {new Date(user.created_at).toLocaleDateString()}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{user.pool_count} {user.pool_count === 1 ? "pool" : "pools"}</span></div>)}</div></div>
       </section>
+
+      {authData && <section className="panel mt-8 overflow-hidden">
+        <div className="border-b border-slate-200 p-6"><p className="eyebrow">Account security</p><h2 className="mt-2 text-2xl font-black">Password and login activity</h2><p className="mt-2 text-sm text-slate-500">Passwords are never stored in this log. Email addresses are masked.</p></div>
+        <div className="grid grid-cols-2 border-b border-slate-200 sm:grid-cols-4">
+          {[
+            ["Successful logins", authData.metrics.login_succeeded_7d],
+            ["Failed logins", authData.metrics.login_failed_7d],
+            ["Reset requests", authData.metrics.reset_requested_7d],
+            ["Password changes", authData.metrics.password_changed_7d],
+          ].map(([label, value]) => <div key={label} className="border-r border-slate-100 p-5 last:border-r-0"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p><p className="mt-1 text-xs text-slate-400">Last 7 days</p></div>)}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[650px] text-left">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-400"><tr><th className="p-4">Event</th><th className="p-4">Account</th><th className="p-4">Time</th></tr></thead>
+            <tbody>{authData.activity.length ? authData.activity.map((item) => <tr key={item.id} className="border-t border-slate-100"><td className="p-4 font-bold">{authLabels[item.event_type] ?? item.event_type}</td><td className="p-4"><p className="font-bold">{item.display_name ?? "Unverified attempt"}</p><p className="mt-1 text-xs text-slate-400">{item.email_hint ?? "No email available"}</p></td><td className="p-4 text-sm text-slate-500">{new Date(item.created_at).toLocaleString()}</td></tr>) : <tr><td colSpan={3} className="p-6 text-center text-sm text-slate-500">No password activity has been recorded yet.</td></tr>}</tbody>
+          </table>
+        </div>
+      </section>}
 
       <section className="panel mt-8 p-6"><div className="flex items-end justify-between gap-4"><div><p className="eyebrow">Application log</p><h2 className="mt-2 text-2xl font-black">Recent activity</h2></div><span className="text-xs text-slate-400">Latest 40 events</span></div><div className="mt-5 divide-y divide-slate-100">{data.activity.map((item) => <div key={item.id} className="grid gap-1 py-3 sm:grid-cols-[120px_1fr_auto] sm:items-center sm:gap-4"><span className="w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{labels[item.event_type] ?? "Activity"}</span><p className="text-sm"><strong>{item.actor_name ?? item.subject_name ?? "NFLbetx"}</strong> - {item.message}{item.pool_name ? ` - ${item.pool_name}` : ""}</p><time className="text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</time></div>)}</div></section>
     </main>
