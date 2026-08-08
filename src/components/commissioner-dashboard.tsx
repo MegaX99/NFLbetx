@@ -153,14 +153,14 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     setWorking(false);
   }
 
-  if (loading) return <main className="mx-auto w-full max-w-6xl px-4 py-12"><div className="panel p-8 text-center text-slate-500">Loading commissioner controlsâ€¦</div></main>;
+  if (loading) return <main className="mx-auto w-full max-w-6xl px-4 py-12"><div className="panel p-8 text-center text-slate-500">Loading commissioner controls...</div></main>;
   if (!user) return <main className="mx-auto w-full max-w-xl px-4 py-12"><div className="panel p-8 text-center"><p className="font-black">Sign in to open commissioner controls.</p><Link href="/login" className="mt-4 inline-flex rounded-xl bg-slate-950 px-5 py-3 font-black text-white">Sign in</Link></div></main>;
   if (!pool) return <main className="mx-auto w-full max-w-xl px-4 py-12"><div className="panel p-8 text-center"><p className="font-black">Commissioner access unavailable</p><p className="mt-2 text-slate-500">{notice}</p><Link href="/pools" className="mt-4 inline-flex font-bold text-blue-700">Return to My Pools</Link></div></main>;
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-        <div><p className="eyebrow">Master control panel</p><h1 className="mt-2 text-4xl font-black tracking-tight">Commissioner Dashboard</h1><p className="mt-2 text-slate-500">{pool.name} Â· {pool.season} season</p></div>
+        <div><p className="eyebrow">Master control panel</p><h1 className="mt-2 text-4xl font-black tracking-tight">Commissioner Dashboard</h1><p className="mt-2 text-slate-500">{pool.name} - {pool.season} season</p></div>
         <div className="flex gap-3"><Link href={`/picks?pool=${pool.id}`} className="rounded-xl bg-lime-400 px-5 py-3 font-black text-slate-950">Open picks</Link><Link href="/pools" className="rounded-xl border border-slate-300 bg-white px-5 py-3 font-bold">My Pools</Link></div>
       </div>
       {notice && <p role="status" className="panel mt-6 border-lime-200 bg-lime-50 p-4 text-sm font-bold text-lime-900">{notice}</p>}
@@ -188,7 +188,7 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
         <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left"><thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-400"><tr><th className="p-4">Player</th><th className="p-4">Role</th><th className="p-4">Week 1 picks</th><th className="p-4">Joined</th><th className="p-4 text-right">Control</th></tr></thead><tbody>{members.map((member) => <tr key={member.user_id} className="border-t border-slate-100"><td className="p-4 font-bold">{member.display_name}</td><td className="p-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${member.role === "commissioner" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-600"}`}>{member.role}</span></td><td className="p-4 font-black">{member.picks} / {gameCount}</td><td className="p-4 text-sm text-slate-500">{new Date(member.joined_at).toLocaleDateString()}</td><td className="p-4 text-right">{member.role === "member" && <button type="button" onClick={() => removeMember(member)} disabled={working} className="font-bold text-red-600 hover:underline">Remove</button>}</td></tr>)}</tbody></table></div>
       </section>
 
-      <section className="panel mt-8 p-6"><p className="eyebrow">Audit trail</p><h2 className="mt-2 text-2xl font-black">Recent pool activity</h2><div className="mt-5 divide-y divide-slate-100">{activity.length ? activity.map((item) => <div key={item.id} className="flex flex-col justify-between gap-1 py-3 sm:flex-row"><p className="text-sm"><strong>{item.actor_name ?? item.subject_name ?? "NFLbetx"}</strong> Â· {item.message}</p><time className="text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</time></div>) : <p className="py-4 text-sm text-slate-500">No pool activity recorded yet.</p>}</div></section>
+      <section className="panel mt-8 p-6"><p className="eyebrow">Audit trail</p><h2 className="mt-2 text-2xl font-black">Recent pool activity</h2><div className="mt-5 divide-y divide-slate-100">{activity.length ? activity.map((item) => <div key={item.id} className="flex flex-col justify-between gap-1 py-3 sm:flex-row"><p className="text-sm"><strong>{item.actor_name ?? item.subject_name ?? "NFLbetx"}</strong> - {item.message}</p><time className="text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</time></div>) : <p className="py-4 text-sm text-slate-500">No pool activity recorded yet.</p>}</div></section>
     </main>
   );
 }
