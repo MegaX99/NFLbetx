@@ -41,7 +41,7 @@ export function OwnerDashboard() {
     initialize();
   }, []);
 
-  if (loading) return <main className="mx-auto w-full max-w-6xl px-4 py-12"><div className="panel p-8 text-center text-slate-500">Loading owner metricsâ€¦</div></main>;
+  if (loading) return <main className="mx-auto w-full max-w-6xl px-4 py-12"><div className="panel p-8 text-center text-slate-500">Loading owner metrics...</div></main>;
   if (!data) return <main className="mx-auto w-full max-w-xl px-4 py-12"><div className="panel p-8 text-center"><p className="text-xl font-black">Owner access unavailable</p><p className="mt-2 text-slate-500">{message}</p><Link href="/account" className="mt-5 inline-flex font-bold text-blue-700">Return to account</Link></div></main>;
 
   const metricCards: Array<[string, number, string]> = [
@@ -67,7 +67,7 @@ export function OwnerDashboard() {
         <div className="panel p-6"><p className="eyebrow">Growth</p><h2 className="mt-2 text-2xl font-black">Newest users</h2><div className="mt-5 divide-y divide-slate-100">{data.recent_users.map((user) => <div key={user.id} className="flex items-center justify-between gap-4 py-3"><div><p className="font-bold">{user.display_name}</p><p className="text-xs text-slate-400">Joined {new Date(user.created_at).toLocaleDateString()}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{user.pool_count} {user.pool_count === 1 ? "pool" : "pools"}</span></div>)}</div></div>
       </section>
 
-      <section className="panel mt-8 p-6"><div className="flex items-end justify-between gap-4"><div><p className="eyebrow">Application log</p><h2 className="mt-2 text-2xl font-black">Recent activity</h2></div><span className="text-xs text-slate-400">Latest 40 events</span></div><div className="mt-5 divide-y divide-slate-100">{data.activity.map((item) => <div key={item.id} className="grid gap-1 py-3 sm:grid-cols-[120px_1fr_auto] sm:items-center sm:gap-4"><span className="w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{labels[item.event_type] ?? "Activity"}</span><p className="text-sm"><strong>{item.actor_name ?? item.subject_name ?? "NFLbetx"}</strong> Â· {item.message}{item.pool_name ? ` Â· ${item.pool_name}` : ""}</p><time className="text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</time></div>)}</div></section>
+      <section className="panel mt-8 p-6"><div className="flex items-end justify-between gap-4"><div><p className="eyebrow">Application log</p><h2 className="mt-2 text-2xl font-black">Recent activity</h2></div><span className="text-xs text-slate-400">Latest 40 events</span></div><div className="mt-5 divide-y divide-slate-100">{data.activity.map((item) => <div key={item.id} className="grid gap-1 py-3 sm:grid-cols-[120px_1fr_auto] sm:items-center sm:gap-4"><span className="w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{labels[item.event_type] ?? "Activity"}</span><p className="text-sm"><strong>{item.actor_name ?? item.subject_name ?? "NFLbetx"}</strong> - {item.message}{item.pool_name ? ` - ${item.pool_name}` : ""}</p><time className="text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</time></div>)}</div></section>
     </main>
   );
 }
