@@ -9,12 +9,14 @@ import { DEFAULT_POOL_ID, type Game, type PickSide } from "@/lib/picks";
 
 type PickMap = Record<string, PickSide>;
 
-export function PicksDashboard() {
+export function PicksDashboard({ poolId }: { poolId?: string }) {
+  const activePoolId = poolId ?? DEFAULT_POOL_ID;
   const [games, setGames] = useState<Game[]>([]);
   const [picks, setPicks] = useState<PickMap>({});
   const [entryId, setEntryId] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
+  const [poolName, setPoolName] = useState("NFLbetx 2026");
   const [loading, setLoading] = useState(true);
   const [savingGame, setSavingGame] = useState<string | null>(null);
   const [refreshingOdds, setRefreshingOdds] = useState(false);
@@ -43,17 +45,23 @@ export function PicksDashboard() {
       setSignedIn(Boolean(user));
 
       if (user) {
-        const { data: pool } = await supabase
+        const { data: pool, error: poolError } = await supabase
           .from("pools")
-          .select("commissioner_id")
-          .eq("id", DEFAULT_POOL_ID)
+          .select("name,commissioner_id")
+          .eq("id", activePoolId)
           .maybeSingle();
+        if (poolError || !pool) {
+          setNotice("This pool is not available to your account. Choose one from My Pools.");
+          setLoading(false);
+          return;
+        }
+        setPoolName(pool.name);
         setIsCommissioner(pool?.commissioner_id === user.id);
 
         const { data: entry, error: entryError } = await supabase
           .from("entries")
           .select("id")
-          .eq("pool_id", DEFAULT_POOL_ID)
+          .eq("pool_id", activePoolId)
           .eq("user_id", user.id)
           .maybeSingle();
 
@@ -79,7 +87,7 @@ export function PicksDashboard() {
 
     load();
     return () => { active = false; };
-  }, []);
+  }, [activePoolId]);
 
   const completed = Object.keys(picks).length;
   const firstKickoff = useMemo(() => games[0]?.kickoff_at, [games]);
@@ -128,7 +136,8 @@ export function PicksDashboard() {
     try {
       const response = await fetch("/api/odds/refresh", {
         method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ poolId: activePoolId }),
       });
       const result = await response.json() as {
         message?: string;
@@ -153,6 +162,10 @@ export function PicksDashboard() {
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
       <section className="grid gap-8 lg:grid-cols-[1fr_320px]">
         <div>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-950 px-5 py-4 text-white">
+            <div><p className="text-xs font-bold uppercase tracking-widest text-lime-400">Current pool</p><p className="mt-1 text-lg font-black">{poolName}</p></div>
+            <Link href="/pools" className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-bold hover:bg-slate-800">Switch pool</Link>
+          </div>
           <WeekHeader firstKickoff={firstKickoff} />
           {loading ? (
             <div className="panel mt-6 p-8 text-center text-slate-500">Loading Week 1â€¦</div>
@@ -217,4 +230,3 @@ export function PicksDashboard() {
     </main>
   );
 }
-
