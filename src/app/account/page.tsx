@@ -10,12 +10,17 @@ export default function AccountPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
 
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       setUser(data.user);
+      if (data.user) {
+        const { data: owner } = await supabase.rpc("is_site_owner");
+        setIsOwner(Boolean(owner));
+      }
       setLoading(false);
     });
 
@@ -50,6 +55,7 @@ export default function AccountPage() {
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link href="/" className="rounded-xl bg-lime-400 px-5 py-3 text-center font-black text-slate-950 hover:bg-lime-300">Make picks</Link>
               <Link href="/pools" className="rounded-xl border border-slate-200 px-5 py-3 text-center font-bold hover:bg-slate-50">My Pools</Link>
+              {isOwner && <Link href="/owner" className="rounded-xl bg-blue-700 px-5 py-3 text-center font-black text-white hover:bg-blue-800">Owner Dashboard</Link>}
               <button type="button" onClick={signOut} className="rounded-xl border border-slate-200 px-5 py-3 font-bold hover:bg-slate-50">Sign out</button>
             </div>
           </div>
@@ -63,3 +69,4 @@ export default function AccountPage() {
     </main>
   );
 }
+
