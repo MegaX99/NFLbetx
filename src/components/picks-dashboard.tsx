@@ -168,7 +168,7 @@ export function PicksDashboard({ poolId }: { poolId?: string }) {
           </div>
           <WeekHeader firstKickoff={firstKickoff} />
           {loading ? (
-            <div className="panel mt-6 p-8 text-center text-slate-500">Loading Week 1â€¦</div>
+            <div className="panel mt-6 p-8 text-center text-slate-500">Loading Week 1...</div>
           ) : games.length ? (
             <div className="mt-6 space-y-4">
               {games.map((game) => (
@@ -212,7 +212,7 @@ export function PicksDashboard({ poolId }: { poolId?: string }) {
                 disabled={refreshingOdds}
                 className="mt-4 w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
               >
-                {refreshingOdds ? "Checking BetMGMâ€¦" : "Update BetMGM lines"}
+                {refreshingOdds ? "Checking BetMGM..." : "Update BetMGM lines"}
               </button>
             </div>
           )}
@@ -223,10 +223,11 @@ export function PicksDashboard({ poolId }: { poolId?: string }) {
             <p className="eyebrow text-lime-400">Pick archive</p>
             <p className="mt-4 text-xl font-black">Your selections, week by week</p>
             <p className="mt-2 text-sm leading-6 text-slate-400">Review saved picks and results from every completed week.</p>
-            <Link href="/history" className="mt-5 inline-flex text-sm font-bold text-lime-400 hover:text-lime-300">View pick history â†’</Link>
+            <Link href="/history" className="mt-5 inline-flex text-sm font-bold text-lime-400 hover:text-lime-300">View pick history -&gt;</Link>
           </div>
         </aside>
       </section>
     </main>
   );
 }
+
