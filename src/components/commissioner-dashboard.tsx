@@ -161,7 +161,7 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div><p className="eyebrow">Master control panel</p><h1 className="mt-2 text-4xl font-black tracking-tight">Commissioner Dashboard</h1><p className="mt-2 text-slate-500">{pool.name} Â· {pool.season} season</p></div>
-        <div className="flex gap-3"><Link href={`/?pool=${pool.id}`} className="rounded-xl bg-lime-400 px-5 py-3 font-black text-slate-950">Open picks</Link><Link href="/pools" className="rounded-xl border border-slate-300 bg-white px-5 py-3 font-bold">My Pools</Link></div>
+        <div className="flex gap-3"><Link href={`/picks?pool=${pool.id}`} className="rounded-xl bg-lime-400 px-5 py-3 font-black text-slate-950">Open picks</Link><Link href="/pools" className="rounded-xl border border-slate-300 bg-white px-5 py-3 font-bold">My Pools</Link></div>
       </div>
       {notice && <p role="status" className="panel mt-6 border-lime-200 bg-lime-50 p-4 text-sm font-bold text-lime-900">{notice}</p>}
 
