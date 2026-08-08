@@ -187,7 +187,10 @@ export function PoolsDashboard() {
                   <p className="mt-2 text-sm text-slate-500">Invite code <strong className="font-mono tracking-wider text-slate-800">{pool.code}</strong></p>
                   {commissioner && <div className="mt-3 flex flex-wrap gap-3 text-sm font-bold"><label className="cursor-pointer text-blue-700 hover:underline">Upload PNG/GIF<input type="file" accept="image/png,image/gif" className="sr-only" disabled={working} onChange={(e) => uploadAvatar(pool, e.target.files?.[0])} /></label>{pool.avatar_path && <button type="button" onClick={() => removeAvatar(pool)} disabled={working} className="text-slate-500 hover:underline">Use default</button>}</div>}
                 </div>
-                <Link href={`/?pool=${pool.id}`} className="rounded-xl bg-lime-400 px-5 py-3 text-center font-black text-slate-950 hover:bg-lime-300">Open pool</Link>
+                <div className="flex flex-col gap-2">
+                  <Link href={`/?pool=${pool.id}`} className="rounded-xl bg-lime-400 px-5 py-3 text-center font-black text-slate-950 hover:bg-lime-300">Open pool</Link>
+                  {commissioner && <Link href={`/commissioner?pool=${pool.id}`} className="rounded-xl border border-slate-300 px-5 py-3 text-center font-bold hover:bg-slate-50">Manage pool</Link>}
+                </div>
               </article>
             );
           })}
@@ -196,3 +199,4 @@ export function PoolsDashboard() {
     </main>
   );
 }
+
