@@ -16,6 +16,19 @@ function poolInviteUrl(code: string) {
   return `${PUBLIC_SITE_URL}/pools?code=${encodeURIComponent(code)}`;
 }
 
+function poolInviteEmailUrl(pool: Pool) {
+  const subject = `You're invited to ${pool.name} on NFLbetx`;
+  const body = [
+    `You're invited to join "${pool.name}" on NFLbetx.`,
+    "",
+    "Use this link to create an account or sign in and join the pool:",
+    poolInviteUrl(pool.code),
+    "",
+    `Invitation code: ${pool.code}`,
+  ].join("\n");
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "NX";
 }
@@ -192,7 +205,7 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
           <p className="eyebrow">Invitations</p><h2 className="mt-2 text-2xl font-black">Pool invitation</h2><p className="mt-3 text-sm leading-6 text-slate-500">Send players the complete link below. It carries the pool code automatically. Regenerating the code stops the old link from working.</p>
           <div className="mt-6 rounded-2xl bg-slate-950 p-6 text-center font-mono text-3xl font-black tracking-[.2em] text-lime-400">{pool.code}</div>
           <a href={poolInviteUrl(pool.code)} className="mt-3 block break-all text-center text-sm font-bold text-blue-700 hover:underline">{poolInviteUrl(pool.code)}</a>
-          <button type="button" onClick={copyInviteLink} className="mt-4 w-full rounded-xl bg-lime-400 px-4 py-3 font-black">Copy invite link</button>
+          <div className="mt-4 grid grid-cols-2 gap-3"><button type="button" onClick={copyInviteLink} className="rounded-xl bg-lime-400 px-4 py-3 font-black">Copy invite link</button><a href={poolInviteEmailUrl(pool)} className="rounded-xl bg-slate-950 px-4 py-3 text-center font-black text-white">Email invitation</a></div>
           <div className="mt-3 grid grid-cols-2 gap-3"><button type="button" onClick={copyCode} className="rounded-xl border border-slate-300 px-4 py-3 font-bold">Copy code only</button><button type="button" onClick={regenerateCode} disabled={working} className="rounded-xl border border-slate-300 px-4 py-3 font-bold">New code</button></div>
         </div>
       </section>
