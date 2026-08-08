@@ -9,7 +9,7 @@ export function SiteHeader() {
           <span className="text-xl">NFLbetx</span>
         </Link>
         <nav className="flex items-center gap-4 text-sm font-bold text-slate-600 sm:gap-7" aria-label="Main navigation">
-          <Link href="/" className="hover:text-slate-950">Picks</Link>
+          <Link href="/picks" className="hover:text-slate-950">Picks</Link>
           <Link href="/pools" className="hover:text-slate-950">My Pools</Link>
           <Link href="/history" className="hover:text-slate-950">History</Link>
           <Link href="/standings" className="hover:text-slate-950">Standings</Link>
@@ -20,3 +20,4 @@ export function SiteHeader() {
     </header>
   );
 }
+
