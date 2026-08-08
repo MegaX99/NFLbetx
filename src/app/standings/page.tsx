@@ -1,9 +1,9 @@
 const players = [
-  ["1", "Gridiron Gary", "42–22", "65.6%", "3–1"],
-  ["2", "Sunday Sarah", "40–24", "62.5%", "2–2"],
-  ["3", "Cover King", "38–26", "59.4%", "4–0"],
-  ["4", "Andy F.", "36–28", "56.3%", "2–2"],
-  ["5", "Two-Minute Tina", "35–29", "54.7%", "1–3"],
+  ["1", "Gridiron Gary", "42-22", "65.6%", "3-1"],
+  ["2", "Sunday Sarah", "40-24", "62.5%", "2-2"],
+  ["3", "Cover King", "38-26", "59.4%", "4-0"],
+  ["4", "Andy F.", "36-28", "56.3%", "2-2"],
+  ["5", "Two-Minute Tina", "35-29", "54.7%", "1-3"],
 ];
 
 export default function StandingsPage() {
@@ -23,3 +23,4 @@ export default function StandingsPage() {
     </main>
   );
 }
+
