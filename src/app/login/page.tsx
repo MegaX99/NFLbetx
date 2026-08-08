@@ -85,7 +85,7 @@ export default function LoginPage() {
           {message && <p role="status" className="rounded-xl bg-slate-100 px-4 py-3 text-sm leading-5 text-slate-700">{message}</p>}
           <button type="submit" disabled={loading}
             className="w-full rounded-xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60">
-            {loading ? "Please waitâ€¦" : mode === "signin" ? "Sign in" : "Create account"}
+            {loading ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
           </button>
         </form>
       </div>
