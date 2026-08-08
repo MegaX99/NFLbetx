@@ -15,6 +15,12 @@ type Pool = {
   avatar_path: string | null;
 };
 
+const PUBLIC_SITE_URL = "https://nf-lbetx.vercel.app";
+
+function poolInviteUrl(code: string) {
+  return `${PUBLIC_SITE_URL}/pools?code=${encodeURIComponent(code)}`;
+}
+
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "NX";
 }
@@ -47,6 +53,8 @@ export function PoolsDashboard() {
     let active = true;
     createClient().auth.getUser().then(async ({ data }) => {
       if (!active) return;
+      const sharedCode = new URLSearchParams(window.location.search).get("code")?.trim().toUpperCase();
+      if (sharedCode && sharedCode.length <= 40) setInviteCode(sharedCode);
       if (data.user) await loadPools(data.user);
       setLoading(false);
     });
@@ -130,14 +138,23 @@ export function PoolsDashboard() {
     setWorking(false);
   }
 
+  async function copyInviteLink(pool: Pool) {
+    await navigator.clipboard.writeText(poolInviteUrl(pool.code));
+    setNotice(`Invitation link for ${pool.name} copied. Paste it into an email or text message.`);
+  }
+
   if (loading) return <main className="mx-auto w-full max-w-5xl px-4 py-12"><div className="panel p-8 text-center text-slate-500">Loading your pools...</div></main>;
 
   if (!user) return (
     <main className="mx-auto grid w-full max-w-xl flex-1 place-items-center px-4 py-12">
       <div className="panel w-full p-8 text-center">
-        <p className="eyebrow">My pools</p>
-        <h1 className="mt-2 text-3xl font-black">Sign in to manage your pools</h1>
-        <Link href="/login" className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 font-black text-white">Sign in</Link>
+        <p className="eyebrow">{inviteCode ? "Pool invitation" : "My pools"}</p>
+        <h1 className="mt-2 text-3xl font-black">{inviteCode ? "You have been invited to an NFLbetx pool" : "Sign in to manage your pools"}</h1>
+        {inviteCode && <p className="mt-3 text-slate-600">Create an account or sign in. Your invitation code <strong className="font-mono text-slate-950">{inviteCode}</strong> will be ready for you.</p>}
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {inviteCode && <Link href={`/login?mode=signup&invite=${encodeURIComponent(inviteCode)}`} className="inline-flex rounded-xl bg-lime-400 px-5 py-3 font-black text-slate-950">Create account</Link>}
+          <Link href={inviteCode ? `/login?invite=${encodeURIComponent(inviteCode)}` : "/login"} className="inline-flex rounded-xl bg-slate-950 px-5 py-3 font-black text-white">Sign in</Link>
+        </div>
       </div>
     </main>
   );
@@ -185,6 +202,7 @@ export function PoolsDashboard() {
                     <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${commissioner ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-600"}`}>{commissioner ? "Commissioner" : "Player"}</span>
                   </div>
                   <p className="mt-2 text-sm text-slate-500">Invite code <strong className="font-mono tracking-wider text-slate-800">{pool.code}</strong></p>
+                  {commissioner && <button type="button" onClick={() => copyInviteLink(pool)} className="mt-2 text-sm font-bold text-blue-700 hover:underline">Copy invite link</button>}
                   {commissioner && <div className="mt-3 flex flex-wrap gap-3 text-sm font-bold"><label className="cursor-pointer text-blue-700 hover:underline">Upload PNG/GIF<input type="file" accept="image/png,image/gif" className="sr-only" disabled={working} onChange={(e) => uploadAvatar(pool, e.target.files?.[0])} /></label>{pool.avatar_path && <button type="button" onClick={() => removeAvatar(pool)} disabled={working} className="text-slate-500 hover:underline">Use default</button>}</div>}
                 </div>
                 <div className="flex flex-col gap-2">
