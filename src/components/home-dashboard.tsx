@@ -29,6 +29,10 @@ export function HomeDashboard() {
       const currentUser = authData.user;
       if (!active) return;
 
+      if (new URLSearchParams(window.location.search).get("error_code") === "otp_expired") {
+        setNotice("This confirmation link has already been used or has expired. If you just confirmed your email, log in with your email and password.");
+      }
+
       setUser(currentUser);
       if (!currentUser) {
         setLoading(false);
@@ -87,6 +91,7 @@ export function HomeDashboard() {
     return (
       <main className="flex-1">
         <section className="overflow-hidden bg-slate-950 text-white">
+          {notice && <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6"><p role="status" className="rounded-xl border border-amber-300/40 bg-amber-300/10 p-4 text-sm font-bold text-amber-100">{notice}</p></div>}
           <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.1fr_.9fr] lg:items-center">
             <div>
               <p className="eyebrow text-lime-400">Friendly NFL competition</p>
