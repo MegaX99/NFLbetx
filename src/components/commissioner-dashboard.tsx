@@ -10,6 +10,12 @@ type Pool = { id: string; name: string; code: string; season: number; commission
 type Member = { user_id: string; role: "commissioner" | "member"; joined_at: string; display_name: string; picks: number };
 type Activity = { id: string; event_type: string; message: string; created_at: string; actor_name: string | null; subject_name: string | null };
 
+const PUBLIC_SITE_URL = "https://nf-lbetx.vercel.app";
+
+function poolInviteUrl(code: string) {
+  return `${PUBLIC_SITE_URL}/pools?code=${encodeURIComponent(code)}`;
+}
+
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "NX";
 }
@@ -115,6 +121,12 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     setNotice("Invitation code copied.");
   }
 
+  async function copyInviteLink() {
+    if (!pool) return;
+    await navigator.clipboard.writeText(poolInviteUrl(pool.code));
+    setNotice("Invitation link copied. Paste it into an email or text message.");
+  }
+
   async function uploadAvatar(file?: File) {
     if (!file || !pool) return;
     if (!["image/png", "image/gif"].includes(file.type)) { setNotice("Please choose a PNG or GIF image."); return; }
@@ -177,9 +189,11 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
         </div>
 
         <div className="panel p-6">
-          <p className="eyebrow">Invitations</p><h2 className="mt-2 text-2xl font-black">Pool invitation code</h2><p className="mt-3 text-sm leading-6 text-slate-500">Share this code with players. Regenerating it stops the old code from working.</p>
+          <p className="eyebrow">Invitations</p><h2 className="mt-2 text-2xl font-black">Pool invitation</h2><p className="mt-3 text-sm leading-6 text-slate-500">Send players the complete link below. It carries the pool code automatically. Regenerating the code stops the old link from working.</p>
           <div className="mt-6 rounded-2xl bg-slate-950 p-6 text-center font-mono text-3xl font-black tracking-[.2em] text-lime-400">{pool.code}</div>
-          <div className="mt-4 grid grid-cols-2 gap-3"><button type="button" onClick={copyCode} className="rounded-xl bg-lime-400 px-4 py-3 font-black">Copy code</button><button type="button" onClick={regenerateCode} disabled={working} className="rounded-xl border border-slate-300 px-4 py-3 font-bold">New code</button></div>
+          <a href={poolInviteUrl(pool.code)} className="mt-3 block break-all text-center text-sm font-bold text-blue-700 hover:underline">{poolInviteUrl(pool.code)}</a>
+          <button type="button" onClick={copyInviteLink} className="mt-4 w-full rounded-xl bg-lime-400 px-4 py-3 font-black">Copy invite link</button>
+          <div className="mt-3 grid grid-cols-2 gap-3"><button type="button" onClick={copyCode} className="rounded-xl border border-slate-300 px-4 py-3 font-bold">Copy code only</button><button type="button" onClick={regenerateCode} disabled={working} className="rounded-xl border border-slate-300 px-4 py-3 font-bold">New code</button></div>
         </div>
       </section>
 
