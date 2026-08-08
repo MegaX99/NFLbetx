@@ -31,7 +31,7 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/` },
+          options: { emailRedirectTo: "https://nf-lbetx.vercel.app/" },
         });
         if (error) throw error;
 
