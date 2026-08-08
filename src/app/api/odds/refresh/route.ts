@@ -38,10 +38,18 @@ export async function POST(request: Request) {
     return Response.json({ message: "Your session has expired. Please sign in again." }, { status: 401 });
   }
 
+  let poolId = DEFAULT_POOL_ID;
+  try {
+    const body = await request.json() as { poolId?: string };
+    if (body.poolId && /^[0-9a-f-]{36}$/i.test(body.poolId)) poolId = body.poolId;
+  } catch {
+    // Older clients may send no JSON body; keep the original NFLbetx pool as default.
+  }
+
   const { data: pool, error: poolError } = await supabase
     .from("pools")
     .select("commissioner_id")
-    .eq("id", DEFAULT_POOL_ID)
+    .eq("id", poolId)
     .single();
   if (poolError || pool.commissioner_id !== userData.user.id) {
     return Response.json({ message: "Only the commissioner can update point spreads." }, { status: 403 });
@@ -132,4 +140,3 @@ export async function POST(request: Request) {
     updates,
   });
 }
-
