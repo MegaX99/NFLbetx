@@ -40,7 +40,7 @@ export default function AccountPage() {
         <h1 className="mt-2 text-3xl font-black tracking-tight">Your NFLbetx account</h1>
 
         {loading ? (
-          <p className="mt-6 text-slate-500">Loading your account…</p>
+          <p className="mt-6 text-slate-500">Loading your accountâ€¦</p>
         ) : user ? (
           <div className="mt-6">
             <div className="rounded-xl bg-slate-50 p-5">
@@ -49,6 +49,7 @@ export default function AccountPage() {
             </div>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link href="/" className="rounded-xl bg-lime-400 px-5 py-3 text-center font-black text-slate-950 hover:bg-lime-300">Make picks</Link>
+              <Link href="/pools" className="rounded-xl border border-slate-200 px-5 py-3 text-center font-bold hover:bg-slate-50">My Pools</Link>
               <button type="button" onClick={signOut} className="rounded-xl border border-slate-200 px-5 py-3 font-bold hover:bg-slate-50">Sign out</button>
             </div>
           </div>
