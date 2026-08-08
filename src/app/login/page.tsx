@@ -12,11 +12,14 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const timer = window.setTimeout(() => {
       if (params.get("mode") === "signup") setMode("signup");
+      const invited = params.get("invite")?.trim().toUpperCase();
+      if (invited && invited.length <= 40) setInviteCode(invited);
       if (params.get("confirmed") === "1") {
         setMode("signin");
         setMessage("Email confirmed. Sign in with the password you created.");
@@ -44,15 +47,18 @@ export default function LoginPage() {
         });
         setMessage("If an NFLbetx account exists for that email, a password-reset message is on its way.");
       } else if (mode === "signup") {
+        const confirmationUrl = new URL("/login", "https://nf-lbetx.vercel.app");
+        confirmationUrl.searchParams.set("confirmed", "1");
+        if (inviteCode) confirmationUrl.searchParams.set("invite", inviteCode);
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: "https://nf-lbetx.vercel.app/login?confirmed=1" },
+          options: { emailRedirectTo: confirmationUrl.toString() },
         });
         if (error) throw error;
 
         if (data.session) {
-          router.push("/");
+          router.push(inviteCode ? `/pools?code=${encodeURIComponent(inviteCode)}` : "/");
           router.refresh();
         } else {
           setMessage("Check your email to confirm your new NFLbetx account.");
@@ -70,7 +76,7 @@ export default function LoginPage() {
           event_kind: "login_succeeded",
           attempted_email: null,
         });
-        router.push("/");
+        router.push(inviteCode ? `/pools?code=${encodeURIComponent(inviteCode)}` : "/");
         router.refresh();
       }
     } catch (error) {
@@ -88,6 +94,7 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-slate-500">
           {mode === "signin" ? "Sign in to make and manage your weekly picks." : mode === "signup" ? "Create your account to join a pool and start picking." : "Enter your email and we will send you a secure reset link."}
         </p>
+        {inviteCode && <p className="mt-4 rounded-xl bg-lime-50 px-4 py-3 text-sm font-bold text-lime-900">Pool invitation ready: <span className="font-mono">{inviteCode}</span></p>}
 
         {mode === "forgot" ? (
           <button type="button" onClick={() => { setMode("signin"); setMessage(""); }} className="mt-5 text-sm font-bold text-blue-700 hover:underline">Back to sign in</button>
