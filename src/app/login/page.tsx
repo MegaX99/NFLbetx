@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
@@ -12,6 +12,12 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("mode") !== "signup") return;
+    const timer = window.setTimeout(() => setMode("signup"), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,12 +31,12 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/account` },
+          options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
 
         if (data.session) {
-          router.push("/account");
+          router.push("/");
           router.refresh();
         } else {
           setMessage("Check your email to confirm your new NFLbetx account.");
@@ -38,7 +44,7 @@ export default function LoginPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push("/account");
+        router.push("/");
         router.refresh();
       }
     } catch (error) {
@@ -79,10 +85,11 @@ export default function LoginPage() {
           {message && <p role="status" className="rounded-xl bg-slate-100 px-4 py-3 text-sm leading-5 text-slate-700">{message}</p>}
           <button type="submit" disabled={loading}
             className="w-full rounded-xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60">
-            {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+            {loading ? "Please waitâ€¦" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
         </form>
       </div>
     </main>
   );
 }
+
