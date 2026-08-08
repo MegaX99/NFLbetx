@@ -78,7 +78,7 @@ export function GameCard({ game, selected, saving, locked, onPick }: {
         <div className="flex items-center gap-2 text-xs font-semibold">
           {game.spread_source && <span className="text-slate-400">{game.spread_source} line</span>}
           <span className={locked || linePending ? "text-amber-700" : "text-slate-400"}>
-            {saving ? "Savingâ€¦" : linePending ? "Line pending" : locked ? "Locked" : selected ? "Saved" : "Open"}
+            {saving ? "Saving..." : linePending ? "Line pending" : locked ? "Locked" : selected ? "Saved" : "Open"}
           </span>
         </div>
       </div>
