@@ -84,7 +84,7 @@ export default function HistoryPage() {
       <p className="mt-2 text-slate-500">Every saved selection remains here after its game and week close.</p>
 
       {loading ? (
-        <div className="panel mt-8 p-8 text-center text-slate-500">Loading your history…</div>
+        <div className="panel mt-8 p-8 text-center text-slate-500">Loading your historyâ€¦</div>
       ) : !signedIn ? (
         <div className="panel mt-8 p-8 text-center">
           <p className="font-black">Sign in to view your pick history.</p>
@@ -94,7 +94,7 @@ export default function HistoryPage() {
         <div className="panel mt-8 p-8 text-center">
           <p className="font-black">No saved picks yet.</p>
           <p className="mt-2 text-sm text-slate-500">Your Week 1 selections will appear here as soon as you make them.</p>
-          <Link href="/" className="mt-4 inline-flex rounded-xl bg-lime-400 px-5 py-3 font-black text-slate-950">Make Week 1 picks</Link>
+          <Link href="/picks" className="mt-4 inline-flex rounded-xl bg-lime-400 px-5 py-3 font-black text-slate-950">Make Week 1 picks</Link>
         </div>
       ) : (
         <div className="mt-8 space-y-6">
@@ -129,3 +129,4 @@ export default function HistoryPage() {
     </main>
   );
 }
+
