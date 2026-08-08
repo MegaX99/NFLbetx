@@ -84,7 +84,7 @@ export default function HistoryPage() {
       <p className="mt-2 text-slate-500">Every saved selection remains here after its game and week close.</p>
 
       {loading ? (
-        <div className="panel mt-8 p-8 text-center text-slate-500">Loading your historyâ€¦</div>
+        <div className="panel mt-8 p-8 text-center text-slate-500">Loading your history...</div>
       ) : !signedIn ? (
         <div className="panel mt-8 p-8 text-center">
           <p className="font-black">Sign in to view your pick history.</p>
