@@ -14,8 +14,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("mode") !== "signup") return;
-    const timer = window.setTimeout(() => setMode("signup"), 0);
+    const params = new URLSearchParams(window.location.search);
+    const timer = window.setTimeout(() => {
+      if (params.get("mode") === "signup") setMode("signup");
+      if (params.get("confirmed") === "1") {
+        setMode("signin");
+        setMessage("Email confirmed. Sign in with the password you created.");
+      }
+    }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -41,7 +47,7 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: "https://nf-lbetx.vercel.app/" },
+          options: { emailRedirectTo: "https://nf-lbetx.vercel.app/login?confirmed=1" },
         });
         if (error) throw error;
 
