@@ -126,6 +126,9 @@ export default function LoginPage() {
             {loading ? "Please wait..." : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset email"}
           </button>
         </form>
+        <p className="mt-5 text-center text-sm text-slate-500">
+          Need help? <a href="mailto:support@nflbetx.com" className="font-bold text-blue-700 hover:underline">Contact support</a>
+        </p>
       </div>
     </main>
   );
