@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { normalizeScreenName, screenNameError, validateScreenName } from "@/lib/screen-name";
+import { invitationDestination, resolvePendingInvite } from "@/lib/pending-invite";
 
 export default function ScreenNamePage() {
   const router = useRouter();
@@ -11,17 +12,20 @@ export default function ScreenNamePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
 
   useEffect(() => {
     let active = true;
 
     async function loadProfile() {
+      const pendingInvite = resolvePendingInvite(new URLSearchParams(window.location.search));
+      setInviteCode(pendingInvite);
       const supabase = createClient();
       const { data: authData } = await supabase.auth.getUser();
       if (!active) return;
 
       if (!authData.user) {
-        router.replace("/login");
+        router.replace(invitationDestination("/login", pendingInvite));
         return;
       }
 
@@ -39,7 +43,7 @@ export default function ScreenNamePage() {
           .eq("user_id", authData.user.id)
           .limit(1)
           .maybeSingle();
-        router.replace(membership ? "/" : "/pools?welcome=1");
+        router.replace(membership ? "/" : invitationDestination("/pools?welcome=1", pendingInvite, "code"));
         return;
       }
 
@@ -79,7 +83,7 @@ export default function ScreenNamePage() {
       return;
     }
 
-    router.replace("/pools?welcome=1");
+    router.replace(invitationDestination("/pools?welcome=1", inviteCode, "code"));
     router.refresh();
   }
 
@@ -89,6 +93,7 @@ export default function ScreenNamePage() {
         <p className="eyebrow">One last step</p>
         <h1 className="mt-2 text-3xl font-black tracking-tight">Choose your screen name</h1>
         <p className="mt-3 leading-7 text-slate-600">This is the name other players will see in pools and standings. Your email address stays private.</p>
+        {inviteCode && <p className="mt-4 rounded-xl bg-lime-50 px-4 py-3 text-sm font-bold text-lime-900">Your pool invitation <span className="font-mono">{inviteCode}</span> is saved and will be ready on the next page.</p>}
 
         {loading ? <p className="mt-7 text-slate-500">Loading your player profile...</p> : (
           <form className="mt-7" onSubmit={saveScreenName}>
@@ -113,4 +118,3 @@ export default function ScreenNamePage() {
     </main>
   );
 }
-
