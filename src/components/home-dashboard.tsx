@@ -65,7 +65,7 @@ export function HomeDashboard() {
       const nextPools = (poolResult.data ?? []) as HomePool[];
       const nextEntries = (entryResult.data ?? []) as Entry[];
       const nextGames = (gameResult.data ?? []) as WeekGame[];
-      setDisplayName(profileResult.data?.display_name ?? currentUser.email?.split("@")[0] ?? "Player");
+      setDisplayName(profileResult.data?.display_name ?? "Player");
       setPools(nextPools);
       setEntries(nextEntries);
       setGames(nextGames);
