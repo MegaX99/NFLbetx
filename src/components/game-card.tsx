@@ -5,6 +5,13 @@ import { useState } from "react";
 import type { Game, PickSide } from "@/lib/picks";
 import { teamLogoUrl, teamName } from "@/lib/picks";
 
+export type TeamRecord = { wins: number; losses: number; ties: number };
+
+function recordText(record?: TeamRecord) {
+  const { wins = 0, losses = 0, ties = 0 } = record ?? {};
+  return ties > 0 ? `${wins}\u2013${losses}\u2013${ties}` : `${wins}\u2013${losses}`;
+}
+
 function TeamLogo({ code }: { code: string }) {
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -26,10 +33,11 @@ function TeamLogo({ code }: { code: string }) {
   );
 }
 
-function TeamButton({ name, code, line, selected, disabled, onClick }: {
+function TeamButton({ name, code, line, record, selected, disabled, onClick }: {
   name: string;
   code: string;
   line: string;
+  record?: TeamRecord;
   selected: boolean;
   disabled: boolean;
   onClick: () => void;
@@ -46,7 +54,16 @@ function TeamButton({ name, code, line, selected, disabled, onClick }: {
           : "border-slate-200 hover:border-slate-400"
       } disabled:cursor-not-allowed disabled:opacity-60`}
     >
-      <TeamLogo code={code} />
+      <span className="flex shrink-0 flex-col items-center gap-1.5">
+        <TeamLogo code={code} />
+        <span
+          className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black tabular-nums text-slate-600"
+          title={`${name} season record`}
+          aria-label={`${name} season record: ${record?.wins ?? 0} wins, ${record?.losses ?? 0} losses${record?.ties ? `, ${record.ties} ties` : ""}`}
+        >
+          {recordText(record)}
+        </span>
+      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-bold text-slate-950">{name}</span>
         <span className="text-xs text-slate-400">{selected ? "Your pick" : "Select team"}</span>
@@ -56,8 +73,10 @@ function TeamButton({ name, code, line, selected, disabled, onClick }: {
   );
 }
 
-export function GameCard({ game, selected, saving, locked, onPick }: {
+export function GameCard({ game, awayRecord, homeRecord, selected, saving, locked, onPick }: {
   game: Game;
+  awayRecord?: TeamRecord;
+  homeRecord?: TeamRecord;
   selected: PickSide | null;
   saving: boolean;
   locked: boolean;
@@ -83,9 +102,9 @@ export function GameCard({ game, selected, saving, locked, onPick }: {
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-        <TeamButton name={teamName(game.away_team)} code={game.away_team} line={awayLine} selected={selected === "away"} disabled={locked || linePending || saving} onClick={() => onPick("away")} />
+        <TeamButton name={teamName(game.away_team)} code={game.away_team} line={awayLine} record={awayRecord} selected={selected === "away"} disabled={locked || linePending || saving} onClick={() => onPick("away")} />
         <span className="text-center text-xs font-black text-slate-300">AT</span>
-        <TeamButton name={teamName(game.home_team)} code={game.home_team} line={homeLine} selected={selected === "home"} disabled={locked || linePending || saving} onClick={() => onPick("home")} />
+        <TeamButton name={teamName(game.home_team)} code={game.home_team} line={homeLine} record={homeRecord} selected={selected === "home"} disabled={locked || linePending || saving} onClick={() => onPick("home")} />
       </div>
     </article>
   );
