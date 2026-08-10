@@ -33,7 +33,13 @@ export default function ScreenNamePage() {
       if (!active) return;
 
       if (profile?.screen_name_set_at) {
-        router.replace("/");
+        const { data: membership } = await supabase
+          .from("pool_members")
+          .select("pool_id")
+          .eq("user_id", authData.user.id)
+          .limit(1)
+          .maybeSingle();
+        router.replace(membership ? "/" : "/pools?welcome=1");
         return;
       }
 
@@ -73,7 +79,7 @@ export default function ScreenNamePage() {
       return;
     }
 
-    router.replace("/");
+    router.replace("/pools?welcome=1");
     router.refresh();
   }
 
