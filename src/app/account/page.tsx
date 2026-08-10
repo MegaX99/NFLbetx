@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase";
 import { normalizeScreenName, screenNameError, validateScreenName } from "@/lib/screen-name";
+import { PlayerAvatar } from "@/components/player-avatar";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -14,7 +15,9 @@ export default function AccountPage() {
   const [isOwner, setIsOwner] = useState(false);
   const [screenName, setScreenName] = useState("");
   const [savedScreenName, setSavedScreenName] = useState("");
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [avatarWorking, setAvatarWorking] = useState(false);
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -25,11 +28,12 @@ export default function AccountPage() {
       if (data.user) {
         const [{ data: owner }, { data: profile }] = await Promise.all([
           supabase.rpc("is_site_owner"),
-          supabase.from("profiles").select("display_name").eq("id", data.user.id).maybeSingle(),
+          supabase.from("profiles").select("display_name,avatar_path").eq("id", data.user.id).maybeSingle(),
         ]);
         setIsOwner(Boolean(owner));
         setScreenName(profile?.display_name ?? "");
         setSavedScreenName(profile?.display_name ?? "");
+        setAvatarPath(profile?.avatar_path ?? null);
       }
       setLoading(false);
     });
@@ -46,6 +50,57 @@ export default function AccountPage() {
     await createClient().auth.signOut();
     router.push("/");
     router.refresh();
+  }
+
+  async function uploadAvatar(file?: File) {
+    if (!file || !user) return;
+    if (!["image/png", "image/gif"].includes(file.type)) {
+      setNotice("Please choose a PNG or GIF image.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setNotice("Please choose an image smaller than 2 MB.");
+      return;
+    }
+
+    setAvatarWorking(true);
+    setNotice("");
+    const supabase = createClient();
+    const extension = file.type === "image/gif" ? "gif" : "png";
+    const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("player-avatars").upload(path, file, { contentType: file.type });
+
+    if (uploadError) {
+      setNotice(uploadError.message);
+    } else {
+      const { error: updateError } = await supabase.from("profiles").update({ avatar_path: path }).eq("id", user.id);
+      if (updateError) {
+        await supabase.storage.from("player-avatars").remove([path]);
+        setNotice(updateError.message);
+      } else {
+        if (avatarPath) await supabase.storage.from("player-avatars").remove([avatarPath]);
+        setAvatarPath(path);
+        setNotice("Your player avatar has been updated.");
+      }
+    }
+    setAvatarWorking(false);
+  }
+
+  async function restoreDefaultAvatar() {
+    if (!avatarPath || !user) return;
+    setAvatarWorking(true);
+    setNotice("");
+    const supabase = createClient();
+    const oldPath = avatarPath;
+    const { error } = await supabase.from("profiles").update({ avatar_path: null }).eq("id", user.id);
+    if (error) {
+      setNotice(error.message);
+    } else {
+      await supabase.storage.from("player-avatars").remove([oldPath]);
+      setAvatarPath(null);
+      setNotice("Your initials avatar has been restored.");
+    }
+    setAvatarWorking(false);
   }
 
   async function saveScreenName(event: FormEvent<HTMLFormElement>) {
@@ -86,6 +141,20 @@ export default function AccountPage() {
           <p className="mt-6 text-slate-500">Loading your account...</p>
         ) : user ? (
           <div className="mt-6">
+            <section className="mb-4 rounded-xl border border-slate-200 p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Player avatar</p>
+              <div className="mt-4 flex items-center gap-5">
+                <PlayerAvatar screenName={savedScreenName || screenName || "NFLbetx Player"} avatarPath={avatarPath} size={88} />
+                <div className="flex flex-col gap-2 text-sm font-bold">
+                  <label className="cursor-pointer text-blue-700 hover:underline">
+                    Upload PNG/GIF
+                    <input type="file" accept="image/png,image/gif" disabled={avatarWorking} className="sr-only" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+                  </label>
+                  {avatarPath && <button type="button" onClick={restoreDefaultAvatar} disabled={avatarWorking} className="text-left text-slate-500 hover:underline">Use initials avatar</button>}
+                  <span className="font-normal text-slate-400">Maximum 2 MB</span>
+                </div>
+              </div>
+            </section>
             <form onSubmit={saveScreenName} className="rounded-xl bg-slate-50 p-5">
               <label htmlFor="account-screen-name" className="text-xs font-bold uppercase tracking-wider text-slate-400">Public screen name</label>
               <div className="mt-2 flex flex-col gap-3 sm:flex-row">
@@ -93,8 +162,8 @@ export default function AccountPage() {
                 <button type="submit" disabled={saving || screenName === savedScreenName} className="rounded-xl bg-slate-950 px-5 py-3 font-black text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving..." : "Save"}</button>
               </div>
               <p className="mt-2 text-xs text-slate-500">Other players see this name. They do not see your email address.</p>
-              {notice && <p role="status" className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-slate-700">{notice}</p>}
             </form>
+            {notice && <p role="status" className="mt-4 rounded-lg bg-lime-50 p-3 text-sm font-bold text-lime-900">{notice}</p>}
             <div className="mt-4 rounded-xl border border-slate-200 p-5">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Private login email</p>
               <p className="mt-1 break-all font-bold">{user.email}</p>
@@ -117,4 +186,3 @@ export default function AccountPage() {
     </main>
   );
 }
-
