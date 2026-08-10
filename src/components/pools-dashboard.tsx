@@ -5,6 +5,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase";
+import { clearPendingInvite, normalizeInviteCode, rememberPendingInvite, resolvePendingInvite } from "@/lib/pending-invite";
 
 type Pool = {
   id: string;
@@ -54,9 +55,9 @@ export function PoolsDashboard() {
     let active = true;
     createClient().auth.getUser().then(async ({ data }) => {
       if (!active) return;
-      const sharedCode = new URLSearchParams(window.location.search).get("code")?.trim().toUpperCase();
+      const sharedCode = resolvePendingInvite(new URLSearchParams(window.location.search));
       setOnboarding(new URLSearchParams(window.location.search).get("welcome") === "1");
-      if (sharedCode && sharedCode.length <= 40) setInviteCode(sharedCode);
+      if (sharedCode) setInviteCode(sharedCode);
       if (data.user) await loadPools(data.user);
       setLoading(false);
     });
@@ -87,6 +88,7 @@ export function PoolsDashboard() {
     if (error) setNotice(error.message);
     else if (user) {
       setInviteCode("");
+      clearPendingInvite();
       await loadPools(user);
       setNotice("You joined the pool. Your contest entry is ready.");
       if (typeof data === "string") window.history.replaceState(null, "", `/pools?joined=${data}`);
@@ -192,7 +194,7 @@ export function PoolsDashboard() {
           <p className="eyebrow">Have an invitation?</p>
           <h2 className="mt-2 text-2xl font-black">Join a pool</h2>
           <label className="mt-5 block text-sm font-bold" htmlFor="invite-code">Invitation code</label>
-          <input id="invite-code" value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} maxLength={40} required placeholder="AB12CD34" autoCapitalize="characters" className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold uppercase tracking-widest outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-200" />
+          <input id="invite-code" value={inviteCode} onChange={(e) => { const code = normalizeInviteCode(e.target.value); setInviteCode(code); if (code) rememberPendingInvite(code); else clearPendingInvite(); }} maxLength={40} required placeholder="AB12CD34" autoCapitalize="characters" className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold uppercase tracking-widest outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-200" />
           <button disabled={working} className="mt-4 w-full rounded-xl bg-slate-950 px-5 py-3 font-black text-white hover:bg-slate-800 disabled:opacity-60">Join this pool</button>
         </form>
       </section>
