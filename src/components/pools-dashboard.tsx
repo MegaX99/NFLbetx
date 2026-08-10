@@ -217,6 +217,7 @@ export function PoolsDashboard() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Link href={`/picks?pool=${pool.id}`} className="rounded-xl bg-lime-400 px-5 py-3 text-center font-black text-slate-950 hover:bg-lime-300">Open pool</Link>
+                  <Link href={`/standings?pool=${pool.id}`} className="rounded-xl bg-slate-950 px-5 py-3 text-center font-black text-white hover:bg-slate-800">Standings</Link>
                   {commissioner && <Link href={`/commissioner?pool=${pool.id}`} className="rounded-xl border border-slate-300 px-5 py-3 text-center font-bold hover:bg-slate-50">Manage pool</Link>}
                 </div>
               </article>
@@ -227,4 +228,3 @@ export function PoolsDashboard() {
     </main>
   );
 }
-
