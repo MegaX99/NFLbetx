@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { invitationDestination, readPendingInvite, rememberPendingInvite, resolvePendingInvite } from "@/lib/pending-invite";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,8 +20,8 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     const timer = window.setTimeout(() => {
       if (params.get("mode") === "signup") setMode("signup");
-      const invited = params.get("invite")?.trim().toUpperCase();
-      if (invited && invited.length <= 40) setInviteCode(invited);
+      const invited = resolvePendingInvite(params);
+      if (invited) setInviteCode(invited);
       if (params.get("confirmed") === "1") {
         setMode("signin");
         setMessage("Email confirmed. Sign in with the password you created.");
@@ -48,9 +49,10 @@ export default function LoginPage() {
         });
         setMessage("If an NFLbetx account exists for that email, a password-reset message is on its way.");
       } else if (mode === "signup") {
+        const pendingInvite = rememberPendingInvite(inviteCode);
         const confirmationUrl = new URL("/login", "https://nf-lbetx.vercel.app");
         confirmationUrl.searchParams.set("confirmed", "1");
-        if (inviteCode) confirmationUrl.searchParams.set("invite", inviteCode);
+        if (pendingInvite) confirmationUrl.searchParams.set("invite", pendingInvite);
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -59,7 +61,7 @@ export default function LoginPage() {
         if (error) throw error;
 
         if (data.session) {
-          router.push(inviteCode ? `/pools?code=${encodeURIComponent(inviteCode)}` : "/");
+          router.push(pendingInvite ? invitationDestination("/pools", pendingInvite, "code") : "/");
           router.refresh();
         } else {
           setMessage("Check your email to confirm your new NFLbetx account.");
@@ -77,7 +79,8 @@ export default function LoginPage() {
           event_kind: "login_succeeded",
           attempted_email: null,
         });
-        router.push(inviteCode ? `/pools?code=${encodeURIComponent(inviteCode)}` : "/");
+        const pendingInvite = rememberPendingInvite(inviteCode) || readPendingInvite();
+        router.push(pendingInvite ? invitationDestination("/pools", pendingInvite, "code") : "/");
         router.refresh();
       }
     } catch (error) {
@@ -150,4 +153,3 @@ export default function LoginPage() {
     </main>
   );
 }
-
