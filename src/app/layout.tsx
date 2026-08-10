@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
+import { ScreenNameGuard } from "@/components/screen-name-guard";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className="flex min-h-screen flex-col">
         <SiteHeader />
-        {children}
+        <ScreenNameGuard>{children}</ScreenNameGuard>
         <footer className="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-400">NFLbetx Version 0.1 - Built for friendly competition</footer>
       </body>
     </html>
