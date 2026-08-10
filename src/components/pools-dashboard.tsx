@@ -38,6 +38,7 @@ export function PoolsDashboard() {
   const [poolName, setPoolName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [notice, setNotice] = useState("");
+  const [onboarding, setOnboarding] = useState(false);
 
   async function loadPools(currentUser: User) {
     const { data, error } = await createClient()
@@ -54,6 +55,7 @@ export function PoolsDashboard() {
     createClient().auth.getUser().then(async ({ data }) => {
       if (!active) return;
       const sharedCode = new URLSearchParams(window.location.search).get("code")?.trim().toUpperCase();
+      setOnboarding(new URLSearchParams(window.location.search).get("welcome") === "1");
       if (sharedCode && sharedCode.length <= 40) setInviteCode(sharedCode);
       if (data.user) await loadPools(data.user);
       setLoading(false);
@@ -166,6 +168,14 @@ export function PoolsDashboard() {
         <h1 className="mt-2 text-4xl font-black tracking-tight">My Pools</h1>
         <p className="mt-3 max-w-2xl text-slate-600">Run your own contest or join friends using their invitation code.</p>
       </div>
+
+      {onboarding && (
+        <section className="panel mt-6 border-lime-200 bg-lime-50 p-6">
+          <p className="eyebrow">Screen name saved</p>
+          <h2 className="mt-2 text-2xl font-black">Choose your first pool</h2>
+          <p className="mt-2 text-slate-600">Enter a friend's invitation code, or create your own pool and become its commissioner.</p>
+        </section>
+      )}
 
       {notice && <p role="status" className="panel mt-6 border-lime-200 bg-lime-50 p-4 text-sm font-bold text-lime-900">{notice}</p>}
 

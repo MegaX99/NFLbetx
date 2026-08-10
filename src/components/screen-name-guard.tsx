@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
-const OPEN_PATHS = new Set(["/login", "/reset-password", "/screen-name"]);
+const OPEN_PATHS = new Set(["/login", "/reset-password"]);
+const NO_POOL_ALLOWED_PATHS = new Set(["/screen-name", "/pools", "/account"]);
 
 export function ScreenNameGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -30,15 +31,34 @@ export function ScreenNameGuard({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("screen_name_set_at")
-        .eq("id", authData.user.id)
-        .maybeSingle();
+      const [{ data: profile, error: profileError }, { data: membership, error: membershipError }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("screen_name_set_at")
+          .eq("id", authData.user.id)
+          .maybeSingle(),
+        supabase
+          .from("pool_members")
+          .select("pool_id")
+          .eq("user_id", authData.user.id)
+          .limit(1)
+          .maybeSingle(),
+      ]);
       if (!active) return;
 
-      if (!error && !profile?.screen_name_set_at) {
+      if (!profileError && !profile?.screen_name_set_at && pathname !== "/screen-name") {
         router.replace("/screen-name");
+        return;
+      }
+
+      if (
+        !profileError
+        && profile?.screen_name_set_at
+        && !membershipError
+        && !membership
+        && !NO_POOL_ALLOWED_PATHS.has(pathname)
+      ) {
+        router.replace("/pools?welcome=1");
         return;
       }
 
