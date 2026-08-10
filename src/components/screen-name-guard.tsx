@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { invitationDestination, resolvePendingInvite } from "@/lib/pending-invite";
 
 const OPEN_PATHS = new Set(["/login", "/reset-password"]);
 const NO_POOL_ALLOWED_PATHS = new Set(["/screen-name", "/pools", "/account"]);
@@ -16,6 +17,7 @@ export function ScreenNameGuard({ children }: { children: React.ReactNode }) {
     let active = true;
 
     async function checkProfile() {
+      const pendingInvite = resolvePendingInvite(new URLSearchParams(window.location.search));
       if (OPEN_PATHS.has(pathname)) {
         setReady(true);
         return;
@@ -47,7 +49,7 @@ export function ScreenNameGuard({ children }: { children: React.ReactNode }) {
       if (!active) return;
 
       if (!profileError && !profile?.screen_name_set_at && pathname !== "/screen-name") {
-        router.replace("/screen-name");
+        router.replace(invitationDestination("/screen-name", pendingInvite));
         return;
       }
 
@@ -58,7 +60,7 @@ export function ScreenNameGuard({ children }: { children: React.ReactNode }) {
         && !membership
         && !NO_POOL_ALLOWED_PATHS.has(pathname)
       ) {
-        router.replace("/pools?welcome=1");
+        router.replace(invitationDestination("/pools?welcome=1", pendingInvite, "code"));
         return;
       }
 
@@ -75,4 +77,3 @@ export function ScreenNameGuard({ children }: { children: React.ReactNode }) {
 
   return children;
 }
-
