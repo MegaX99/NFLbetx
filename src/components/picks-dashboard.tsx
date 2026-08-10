@@ -2,16 +2,43 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { GameCard } from "@/components/game-card";
+import { GameCard, type TeamRecord } from "@/components/game-card";
 import { WeekHeader } from "@/components/week-header";
 import { createClient } from "@/lib/supabase";
 import { DEFAULT_POOL_ID, type Game, type PickSide } from "@/lib/picks";
 
 type PickMap = Record<string, PickSide>;
+type CompletedGame = Pick<Game, "away_team" | "home_team" | "away_score" | "home_score">;
+
+function calculateTeamRecords(games: CompletedGame[]) {
+  const records: Record<string, TeamRecord> = {};
+  const getRecord = (team: string) => {
+    records[team] ??= { wins: 0, losses: 0, ties: 0 };
+    return records[team];
+  };
+
+  for (const game of games) {
+    if (game.away_score === null || game.home_score === null) continue;
+    const away = getRecord(game.away_team);
+    const home = getRecord(game.home_team);
+    if (game.away_score > game.home_score) {
+      away.wins += 1;
+      home.losses += 1;
+    } else if (game.home_score > game.away_score) {
+      home.wins += 1;
+      away.losses += 1;
+    } else {
+      away.ties += 1;
+      home.ties += 1;
+    }
+  }
+  return records;
+}
 
 export function PicksDashboard({ poolId }: { poolId?: string }) {
   const activePoolId = poolId ?? DEFAULT_POOL_ID;
   const [games, setGames] = useState<Game[]>([]);
+  const [teamRecords, setTeamRecords] = useState<Record<string, TeamRecord>>({});
   const [picks, setPicks] = useState<PickMap>({});
   const [entryId, setEntryId] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
@@ -39,6 +66,18 @@ export function PicksDashboard({ poolId }: { poolId?: string }) {
       if (!active) return;
       if (gameError) setNotice(gameError.message);
       setGames((gameRows ?? []) as Game[]);
+
+      const { data: completedGames, error: recordError } = await supabase
+        .from("games")
+        .select("away_team,home_team,away_score,home_score")
+        .eq("season", 2026)
+        .eq("status", "final")
+        .not("away_score", "is", null)
+        .not("home_score", "is", null);
+
+      if (!active) return;
+      if (recordError) setNotice(recordError.message);
+      setTeamRecords(calculateTeamRecords((completedGames ?? []) as CompletedGame[]));
 
       const { data: authData } = await supabase.auth.getUser();
       const user = authData.user;
@@ -172,7 +211,7 @@ export function PicksDashboard({ poolId }: { poolId?: string }) {
           ) : games.length ? (
             <div className="mt-6 space-y-4">
               {games.map((game) => (
-                <GameCard key={game.id} game={game} selected={picks[game.id] ?? null} saving={savingGame === game.id} locked={new Date(game.kickoff_at).getTime() <= now} onPick={(side) => savePick(game.id, side)} />
+                <GameCard key={game.id} game={game} awayRecord={teamRecords[game.away_team]} homeRecord={teamRecords[game.home_team]} selected={picks[game.id] ?? null} saving={savingGame === game.id} locked={new Date(game.kickoff_at).getTime() <= now} onPick={(side) => savePick(game.id, side)} />
               ))}
             </div>
           ) : (
