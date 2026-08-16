@@ -6,10 +6,18 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase";
 import { PlayerAvatar } from "@/components/player-avatar";
+import { commissionerPassTier, formatPassPrice } from "@/lib/commissioner-pass";
 
 type Pool = { id: string; name: string; code: string; season: number; commissioner_id: string; avatar_path: string | null };
 type Member = { user_id: string; role: "commissioner" | "member"; joined_at: string; display_name: string; avatar_path: string | null; picks: number };
 type Activity = { id: string; event_type: string; message: string; created_at: string; actor_name: string | null; subject_name: string | null };
+type CommissionerPass = {
+  status: "pending" | "active" | "suspended" | "refunded";
+  paid_capacity: number;
+  amount_paid_cents: number;
+  due_at: string;
+  paid_at: string | null;
+};
 
 const PUBLIC_SITE_URL = "https://nf-lbetx.vercel.app";
 
@@ -43,6 +51,8 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
   const [pool, setPool] = useState<Pool | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [commissionerPass, setCommissionerPass] = useState<CommissionerPass | null>(null);
+  const [passIsOverdue, setPassIsOverdue] = useState(false);
   const [gameCount, setGameCount] = useState(0);
   const [poolName, setPoolName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -69,11 +79,12 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     setPool(currentPool);
     setPoolName(currentPool.name);
 
-    const [{ data: memberRows }, { data: entryRows }, gameResult, activityResult] = await Promise.all([
+    const [{ data: memberRows }, { data: entryRows }, gameResult, activityResult, passResult] = await Promise.all([
       supabase.from("pool_members").select("user_id,role,joined_at").eq("pool_id", poolId).order("joined_at"),
       supabase.from("entries").select("id,user_id").eq("pool_id", poolId).eq("is_active", true),
       supabase.from("games").select("id", { count: "exact", head: true }).eq("season", currentPool.season).eq("week", 1),
       supabase.rpc("get_pool_activity", { target_pool_id: poolId }),
+      supabase.from("commissioner_passes").select("status,paid_capacity,amount_paid_cents,due_at,paid_at").eq("pool_id", poolId).maybeSingle(),
     ]);
 
     const userIds = (memberRows ?? []).map((row) => row.user_id);
@@ -98,6 +109,9 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     })));
     setGameCount(gameResult.count ?? 0);
     setActivity((activityResult.data ?? []) as Activity[]);
+    const pass = (passResult.data as CommissionerPass | null) ?? null;
+    setCommissionerPass(pass);
+    setPassIsOverdue(Boolean(pass && pass.status !== "active" && new Date(pass.due_at).getTime() < Date.now()));
     setLoading(false);
   }
 
@@ -110,6 +124,12 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
 
   const totalPicks = useMemo(() => members.reduce((sum, member) => sum + member.picks, 0), [members]);
   const avatar = publicAvatarUrl(pool?.avatar_path ?? null);
+  const requiredTier = commissionerPassTier(members.length);
+  const displayedTier = commissionerPass?.status === "active"
+    ? { capacity: commissionerPass.paid_capacity, priceCents: commissionerPass.amount_paid_cents }
+    : requiredTier;
+  const displayCapacity = displayedTier.capacity;
+  const remainingSpots = Math.max(0, displayCapacity - members.length);
 
   async function saveName(event: FormEvent) {
     event.preventDefault();
@@ -194,6 +214,47 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
 
       <section className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[["Members", members.length], ["Active entries", members.length], ["Week 1 picks", totalPicks], ["Possible picks", members.length * gameCount]].map(([label, value]) => <div key={label} className="panel p-5"><p className="text-sm font-bold text-slate-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p></div>)}
+      </section>
+
+      <section className="panel mt-8 overflow-hidden">
+        <div className="grid gap-6 p-6 lg:grid-cols-[1.3fr_.7fr] lg:items-center">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="eyebrow">2026 Commissioner Pass</p>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide ${commissionerPass?.status === "active" ? "bg-lime-100 text-lime-800" : passIsOverdue ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>
+                {commissionerPass?.status === "active" ? "Paid" : passIsOverdue ? "Payment overdue" : "Payment due"}
+              </span>
+            </div>
+            <h2 className="mt-3 text-3xl font-black">{formatPassPrice(displayedTier.priceCents)} for up to {displayedTier.capacity} players</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+              Your commissioner counts as one player. Every five additional verified players above 12 adds $10 to this pool&apos;s season pass. Each pool is billed separately.
+            </p>
+            <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-200" aria-label={`${members.length} of ${displayCapacity} player spots used`}>
+              <div className="h-full rounded-full bg-lime-400 transition-all" style={{ width: `${Math.min(100, (members.length / Math.max(1, displayCapacity)) * 100)}%` }} />
+            </div>
+            <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm font-bold">
+              <span>{members.length} of {displayCapacity} spots used</span>
+              <span className="text-slate-500">{remainingSpots} {remainingSpots === 1 ? "spot" : "spots"} available</span>
+            </div>
+          </div>
+          <div className="rounded-2xl bg-slate-950 p-6 text-white">
+            <p className="text-sm font-bold text-slate-400">{commissionerPass?.status === "active" ? "Pass paid" : "Amount for current roster"}</p>
+            <p className="mt-2 text-4xl font-black text-lime-400">{formatPassPrice(displayedTier.priceCents)}</p>
+            <p className="mt-3 text-sm text-slate-300">
+              Due {commissionerPass ? new Date(commissionerPass.due_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "September 22, 2026"}
+            </p>
+            {commissionerPass?.status === "active" ? (
+              <p className="mt-5 rounded-xl bg-white/10 px-4 py-3 text-sm font-bold">
+                Pass active for up to {commissionerPass.paid_capacity} players.
+              </p>
+            ) : (
+              <div className="mt-5">
+                <button type="button" disabled className="w-full cursor-not-allowed rounded-xl bg-slate-700 px-4 py-3 font-black text-slate-300">Payment checkout coming next</button>
+                <p className="mt-2 text-xs leading-5 text-slate-400">No card will be charged until secure checkout is connected.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">

@@ -175,7 +175,7 @@ export function PoolsDashboard() {
         <section className="panel mt-6 border-lime-200 bg-lime-50 p-6">
           <p className="eyebrow">Screen name saved</p>
           <h2 className="mt-2 text-2xl font-black">Choose your first pool</h2>
-          <p className="mt-2 text-slate-600">Enter a friend's invitation code, or create your own pool and become its commissioner.</p>
+          <p className="mt-2 text-slate-600">Enter a friend&apos;s invitation code, or create your own pool and become its commissioner.</p>
         </section>
       )}
 
