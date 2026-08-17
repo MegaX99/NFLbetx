@@ -219,8 +219,31 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ poolId: pool.id }),
       });
-      const result = await response.json() as { approvalUrl?: string; message?: string };
-      if (!response.ok || !result.approvalUrl) {
+      const result = await response.json() as {
+        approvalUrl?: string;
+        captureReady?: boolean;
+        orderId?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        setNotice(result.message ?? "PayPal Sandbox checkout could not be opened.");
+        setCheckoutWorking(false);
+        return;
+      }
+      if (result.captureReady && result.orderId) {
+        setNotice("Recovering your completed PayPal Sandbox payment...");
+        const captureResponse = await fetch("/api/paypal/capture", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: result.orderId }),
+        });
+        const captureResult = await captureResponse.json() as { message?: string };
+        setNotice(captureResult.message ?? (captureResponse.ok ? "Sandbox payment confirmed." : "Payment confirmation failed."));
+        if (captureResponse.ok) await load(user ?? undefined);
+        setCheckoutWorking(false);
+        return;
+      }
+      if (!result.approvalUrl) {
         setNotice(result.message ?? "PayPal Sandbox checkout could not be opened.");
         setCheckoutWorking(false);
         return;

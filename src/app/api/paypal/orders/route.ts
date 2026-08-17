@@ -1,5 +1,5 @@
 import { commissionerPassTier } from "@/lib/commissioner-pass";
-import { createPayPalOrder } from "@/lib/server/paypal";
+import { createPayPalOrder, getPayPalOrder } from "@/lib/server/paypal";
 import { authenticateRequest, createAdminServerClient } from "@/lib/server/supabase";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -55,11 +55,26 @@ export async function POST(request: Request) {
       .lt("created_at", staleBefore);
 
     const { data: existing } = await admin.from("commissioner_pass_payments")
-      .select("id,status,target_capacity,approval_url,amount_cents")
+      .select("id,status,target_capacity,approval_url,amount_cents,paypal_order_id")
       .eq("pool_id", pool.id)
       .in("status", ["creating", "created"])
       .maybeSingle();
     if (existing?.status === "created" && existing.target_capacity === targetTier.capacity && existing.approval_url) {
+      if (existing.paypal_order_id) {
+        try {
+          const existingOrder = await getPayPalOrder(existing.paypal_order_id);
+          if (existingOrder.status === "APPROVED" || existingOrder.status === "COMPLETED") {
+            return Response.json({
+              orderId: existing.paypal_order_id,
+              captureReady: true,
+              amountCents: existing.amount_cents,
+              reused: true,
+            });
+          }
+        } catch (error) {
+          console.warn("Existing PayPal order could not be checked; reopening approval", error);
+        }
+      }
       return Response.json({ approvalUrl: existing.approval_url, amountCents: existing.amount_cents, reused: true });
     }
     if (existing?.status === "creating") {

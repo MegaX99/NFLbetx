@@ -4,7 +4,13 @@ const PAYPAL_SANDBOX_API = "https://api-m.sandbox.paypal.com";
 
 type PayPalLink = { href: string; rel: string; method?: string };
 type PayPalAmount = { currency_code: string; value: string };
-type PayPalCapture = { id: string; status: string; amount: PayPalAmount };
+type PayPalCapture = {
+  id: string;
+  status: string;
+  amount: PayPalAmount;
+  custom_id?: string;
+  invoice_id?: string;
+};
 type PayPalPurchaseUnit = {
   reference_id?: string;
   custom_id?: string;
@@ -115,7 +121,10 @@ export async function createPayPalOrder(input: {
 export async function capturePayPalOrder(orderId: string, requestId: string) {
   return paypalRequest(`/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
     method: "POST",
-    headers: { "PayPal-Request-Id": requestId },
+    headers: {
+      "PayPal-Request-Id": requestId,
+      Prefer: "return=representation",
+    },
     body: "{}",
   });
 }
@@ -127,7 +136,13 @@ export async function getPayPalOrder(orderId: string) {
 export function completedCapture(order: PayPalOrder) {
   const purchaseUnit = order.purchase_units?.[0];
   const capture = purchaseUnit?.payments?.captures?.find((candidate) => candidate.status === "COMPLETED");
-  return { purchaseUnit, capture, payerId: order.payer?.payer_id ?? null };
+  return {
+    purchaseUnit,
+    capture,
+    customId: capture?.custom_id ?? purchaseUnit?.custom_id,
+    invoiceId: capture?.invoice_id ?? purchaseUnit?.invoice_id,
+    payerId: order.payer?.payer_id ?? null,
+  };
 }
 
 export function usdValueToCents(value: string) {

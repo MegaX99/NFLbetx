@@ -31,24 +31,32 @@ export async function POST(request: Request) {
 
     let order;
     try {
-      order = await capturePayPalOrder(body.orderId, `${payment.id}-capture`);
+      await capturePayPalOrder(body.orderId, `${payment.id}-capture`);
+      // PayPal can return a minimal capture response. Fetch the canonical order
+      // representation before validating and recording the payment.
+      order = await getPayPalOrder(body.orderId);
     } catch (captureError) {
       console.warn("PayPal capture call did not complete; checking order state", captureError);
       order = await getPayPalOrder(body.orderId);
     }
 
-    const { purchaseUnit, capture, payerId } = completedCapture(order);
+    const { purchaseUnit, capture, customId, invoiceId, payerId } = completedCapture(order);
     const capturedCents = capture ? usdValueToCents(capture.amount.value) : null;
-    if (
-      order.status !== "COMPLETED"
-      || !capture
-      || capture.amount.currency_code !== "USD"
-      || capturedCents !== payment.amount_cents
-      || purchaseUnit?.reference_id !== payment.pool_id
-      || purchaseUnit?.custom_id !== payment.id
-      || purchaseUnit?.invoice_id !== payment.id
-    ) {
-      console.error("PayPal capture verification failed", { orderId: body.orderId, paymentId: payment.id });
+    const verification = {
+      orderCompleted: order.status === "COMPLETED",
+      captureCompleted: Boolean(capture),
+      currencyMatches: capture?.amount.currency_code === "USD",
+      amountMatches: capturedCents === payment.amount_cents,
+      poolMatches: purchaseUnit?.reference_id === payment.pool_id,
+      customIdMatches: customId === payment.id,
+      invoiceIdMatches: invoiceId === payment.id,
+    };
+    if (!capture || Object.values(verification).some((matches) => !matches)) {
+      console.error("PayPal capture verification failed", {
+        orderId: body.orderId,
+        paymentId: payment.id,
+        verification,
+      });
       return Response.json({ message: "PayPal has not confirmed the expected payment amount." }, { status: 422 });
     }
 
