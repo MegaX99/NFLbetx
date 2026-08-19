@@ -18,6 +18,10 @@ type CommissionerPass = {
   due_at: string;
   paid_at: string | null;
 };
+type PayPalConfig = {
+  environment: "sandbox" | "live" | null;
+  configured: boolean;
+};
 
 const PUBLIC_SITE_URL = "https://nf-lbetx.vercel.app";
 
@@ -52,6 +56,7 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [commissionerPass, setCommissionerPass] = useState<CommissionerPass | null>(null);
+  const [paypalConfig, setPayPalConfig] = useState<PayPalConfig>({ environment: null, configured: false });
   const [passIsOverdue, setPassIsOverdue] = useState(false);
   const [gameCount, setGameCount] = useState(0);
   const [poolName, setPoolName] = useState("");
@@ -81,12 +86,15 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     setPool(currentPool);
     setPoolName(currentPool.name);
 
-    const [{ data: memberRows }, { data: entryRows }, gameResult, activityResult, passResult] = await Promise.all([
+    const [{ data: memberRows }, { data: entryRows }, gameResult, activityResult, passResult, paypalConfigResult] = await Promise.all([
       supabase.from("pool_members").select("user_id,role,joined_at").eq("pool_id", poolId).order("joined_at"),
       supabase.from("entries").select("id,user_id").eq("pool_id", poolId).eq("is_active", true),
       supabase.from("games").select("id", { count: "exact", head: true }).eq("season", currentPool.season).eq("week", 1),
       supabase.rpc("get_pool_activity", { target_pool_id: poolId }),
       supabase.from("commissioner_passes").select("status,paid_capacity,amount_paid_cents,due_at,paid_at").eq("pool_id", poolId).maybeSingle(),
+      fetch("/api/paypal/config", { cache: "no-store" })
+        .then(async (response) => response.ok ? await response.json() as PayPalConfig : null)
+        .catch(() => null),
     ]);
 
     const userIds = (memberRows ?? []).map((row) => row.user_id);
@@ -113,6 +121,7 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     setActivity((activityResult.data ?? []) as Activity[]);
     const pass = (passResult.data as CommissionerPass | null) ?? null;
     setCommissionerPass(pass);
+    setPayPalConfig(paypalConfigResult ?? { environment: null, configured: false });
     setPassIsOverdue(Boolean(pass && pass.status !== "active" && new Date(pass.due_at).getTime() < Date.now()));
     setLoading(false);
   }
@@ -130,7 +139,7 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     if (params.get("paypal") === "cancelled") {
       paypalReturnHandled.current = true;
       const noticeTimer = window.setTimeout(() => {
-        setNotice("PayPal Sandbox checkout was cancelled. Nothing was charged.");
+        setNotice("PayPal checkout was cancelled. Nothing was charged.");
       }, 0);
       params.delete("paypal");
       const query = params.toString();
@@ -148,7 +157,7 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
 
     async function capturePayment() {
       setCheckoutWorking(true);
-      setNotice("Confirming your PayPal Sandbox payment...");
+      setNotice("Confirming your PayPal payment...");
       const supabase = createClient();
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
@@ -165,10 +174,10 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
           body: JSON.stringify({ orderId }),
         });
         const result = await response.json() as { message?: string };
-        setNotice(result.message ?? (response.ok ? "Sandbox payment confirmed." : "Payment confirmation failed."));
+        setNotice(result.message ?? (response.ok ? "Payment confirmed." : "Payment confirmation failed."));
         if (response.ok) await load(user ?? undefined);
       } catch {
-        setNotice("The sandbox payment could not be confirmed. Please try again; do not start another payment.");
+        setNotice("The payment could not be confirmed. Please try again; do not start another payment.");
       } finally {
         params.delete("paypal");
         params.delete("token");
@@ -199,16 +208,21 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     ? Math.max(0, upgradeTier.priceCents - commissionerPass.amount_paid_cents)
     : requiredTier.priceCents;
   const checkoutIsAvailable = commissionerPass?.status !== "active" || remainingSpots === 0;
+  const paypalIsSandbox = paypalConfig.environment === "sandbox";
 
   async function beginPayPalCheckout() {
     if (!pool) return;
+    if (!paypalConfig.configured) {
+      setNotice("PayPal checkout is not configured for this environment yet.");
+      return;
+    }
     setCheckoutWorking(true);
     setNotice("");
     const supabase = createClient();
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
     if (!accessToken) {
-      setNotice("Please sign in again before opening PayPal Sandbox.");
+      setNotice("Please sign in again before opening PayPal.");
       setCheckoutWorking(false);
       return;
     }
@@ -226,31 +240,31 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
         message?: string;
       };
       if (!response.ok) {
-        setNotice(result.message ?? "PayPal Sandbox checkout could not be opened.");
+        setNotice(result.message ?? "PayPal checkout could not be opened.");
         setCheckoutWorking(false);
         return;
       }
       if (result.captureReady && result.orderId) {
-        setNotice("Recovering your completed PayPal Sandbox payment...");
+        setNotice("Recovering your completed PayPal payment...");
         const captureResponse = await fetch("/api/paypal/capture", {
           method: "POST",
           headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: result.orderId }),
         });
         const captureResult = await captureResponse.json() as { message?: string };
-        setNotice(captureResult.message ?? (captureResponse.ok ? "Sandbox payment confirmed." : "Payment confirmation failed."));
+        setNotice(captureResult.message ?? (captureResponse.ok ? "Payment confirmed." : "Payment confirmation failed."));
         if (captureResponse.ok) await load(user ?? undefined);
         setCheckoutWorking(false);
         return;
       }
       if (!result.approvalUrl) {
-        setNotice(result.message ?? "PayPal Sandbox checkout could not be opened.");
+        setNotice(result.message ?? "PayPal checkout could not be opened.");
         setCheckoutWorking(false);
         return;
       }
       window.location.assign(result.approvalUrl);
     } catch {
-      setNotice("PayPal Sandbox checkout could not be reached.");
+      setNotice("PayPal checkout could not be reached.");
       setCheckoutWorking(false);
     }
   }
@@ -374,18 +388,32 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
             )}
             {checkoutIsAvailable && (
               <div className="mt-5">
-                <p className="mb-3 rounded-xl border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-xs font-bold text-amber-200">
-                  Sandbox test only - no real money will move.
-                </p>
-                <button type="button" onClick={beginPayPalCheckout} disabled={checkoutWorking} className="w-full rounded-xl bg-[#ffc439] px-4 py-3 font-black text-slate-950 disabled:cursor-wait disabled:opacity-60">
+                {paypalConfig.environment === "sandbox" && (
+                  <p className="mb-3 rounded-xl border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-xs font-bold text-amber-200">
+                    Sandbox test only - no real money will move.
+                  </p>
+                )}
+                {paypalConfig.environment === "live" && (
+                  <p className="mb-3 rounded-xl border border-lime-300/40 bg-lime-300/10 px-4 py-3 text-xs font-bold text-lime-200">
+                    Secure live PayPal checkout - this payment will charge real money.
+                  </p>
+                )}
+                {!paypalConfig.configured && (
+                  <p className="mb-3 rounded-xl border border-red-300/40 bg-red-300/10 px-4 py-3 text-xs font-bold text-red-200">
+                    PayPal checkout is not configured for this environment.
+                  </p>
+                )}
+                <button type="button" onClick={beginPayPalCheckout} disabled={checkoutWorking || !paypalConfig.configured} className="w-full rounded-xl bg-[#ffc439] px-4 py-3 font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-60">
                   {checkoutWorking
-                    ? "Opening PayPal Sandbox..."
+                    ? `Opening PayPal${paypalIsSandbox ? " Sandbox" : ""}...`
                     : `${commissionerPass?.status === "active" ? "Upgrade" : "Pay"} ${formatPassPrice(checkoutAmountCents)} with PayPal`}
                 </button>
                 <p className="mt-2 text-xs leading-5 text-slate-400">
                   {commissionerPass?.status === "active"
                     ? `Adds five spots, increasing this pass to ${upgradeTier.capacity} players.`
-                    : "Use a PayPal sandbox buyer account. Live payments are disabled."}
+                    : paypalIsSandbox
+                      ? "Use a PayPal sandbox buyer account. Live payments are disabled in this preview."
+                      : "You will review and approve the charge securely on PayPal."}
                 </p>
               </div>
             )}

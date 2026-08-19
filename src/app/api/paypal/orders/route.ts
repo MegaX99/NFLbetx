@@ -1,11 +1,13 @@
 import { commissionerPassTier } from "@/lib/commissioner-pass";
-import { createPayPalOrder, getPayPalOrder } from "@/lib/server/paypal";
+import { createPayPalOrder, getPayPalOrder, paypalEnvironment, paypalProvider } from "@/lib/server/paypal";
 import { authenticateRequest, createAdminServerClient } from "@/lib/server/supabase";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request) {
   try {
+    const environment = paypalEnvironment();
+    const provider = paypalProvider(environment);
     const auth = await authenticateRequest(request);
     if (!auth) return Response.json({ message: "Please sign in as the commissioner." }, { status: 401 });
 
@@ -55,19 +57,20 @@ export async function POST(request: Request) {
       .lt("created_at", staleBefore);
 
     const { data: existing } = await admin.from("commissioner_pass_payments")
-      .select("id,status,target_capacity,approval_url,amount_cents,paypal_order_id")
+      .select("id,provider,status,target_capacity,approval_url,amount_cents,paypal_order_id")
       .eq("pool_id", pool.id)
       .in("status", ["creating", "created"])
       .maybeSingle();
-    if (existing?.status === "created" && existing.target_capacity === targetTier.capacity && existing.approval_url) {
+    if (existing?.provider === provider && existing.status === "created" && existing.target_capacity === targetTier.capacity && existing.approval_url) {
       if (existing.paypal_order_id) {
         try {
-          const existingOrder = await getPayPalOrder(existing.paypal_order_id);
+          const existingOrder = await getPayPalOrder(existing.paypal_order_id, environment);
           if (existingOrder.status === "APPROVED" || existingOrder.status === "COMPLETED") {
             return Response.json({
               orderId: existing.paypal_order_id,
               captureReady: true,
               amountCents: existing.amount_cents,
+              environment,
               reused: true,
             });
           }
@@ -75,9 +78,9 @@ export async function POST(request: Request) {
           console.warn("Existing PayPal order could not be checked; reopening approval", error);
         }
       }
-      return Response.json({ approvalUrl: existing.approval_url, amountCents: existing.amount_cents, reused: true });
+      return Response.json({ approvalUrl: existing.approval_url, amountCents: existing.amount_cents, environment, reused: true });
     }
-    if (existing?.status === "creating") {
+    if (existing?.provider === provider && existing.status === "creating") {
       return Response.json({ message: "A checkout is already being prepared. Try again in a moment." }, { status: 409 });
     }
     if (existing) {
@@ -90,6 +93,7 @@ export async function POST(request: Request) {
       pool_id: pool.id,
       season: pool.season,
       commissioner_id: auth.user.id,
+      provider,
       target_capacity: targetTier.capacity,
       target_total_cents: targetTier.priceCents,
       amount_cents: amountCents,
@@ -114,7 +118,7 @@ export async function POST(request: Request) {
         amountCents,
         returnUrl: returnUrl.toString(),
         cancelUrl: cancelUrl.toString(),
-      });
+      }, environment);
       const approvalUrl = order.links?.find((link) => link.rel === "payer-action" || link.rel === "approve")?.href;
       if (!order.id || !approvalUrl) throw new Error("PayPal did not provide an approval link.");
 
@@ -123,14 +127,14 @@ export async function POST(request: Request) {
         .eq("id", paymentId);
       if (updateError) throw updateError;
 
-      return Response.json({ approvalUrl, amountCents });
+      return Response.json({ approvalUrl, amountCents, environment });
     } catch (error) {
       await admin.from("commissioner_pass_payments").update({ status: "failed" }).eq("id", paymentId);
-      console.error("PayPal Sandbox order creation failed", error);
-      return Response.json({ message: error instanceof Error ? error.message : "PayPal Sandbox is unavailable." }, { status: 502 });
+      console.error(`PayPal ${environment} order creation failed`, error);
+      return Response.json({ message: error instanceof Error ? error.message : "PayPal is unavailable." }, { status: 502 });
     }
   } catch (error) {
-    console.error("PayPal Sandbox checkout configuration error", error);
-    return Response.json({ message: "PayPal Sandbox checkout is not configured yet." }, { status: 503 });
+    console.error("PayPal checkout configuration error", error);
+    return Response.json({ message: "PayPal checkout is not configured yet." }, { status: 503 });
   }
 }

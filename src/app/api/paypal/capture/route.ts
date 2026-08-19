@@ -1,10 +1,19 @@
-import { completedCapture, capturePayPalOrder, getPayPalOrder, usdValueToCents } from "@/lib/server/paypal";
+import {
+  completedCapture,
+  capturePayPalOrder,
+  getPayPalOrder,
+  paypalEnvironment,
+  paypalProvider,
+  usdValueToCents,
+} from "@/lib/server/paypal";
 import { authenticateRequest, createAdminServerClient } from "@/lib/server/supabase";
 
 const ORDER_ID_PATTERN = /^[A-Z0-9]{6,64}$/i;
 
 export async function POST(request: Request) {
   try {
+    const environment = paypalEnvironment();
+    const provider = paypalProvider(environment);
     const auth = await authenticateRequest(request);
     if (!auth) return Response.json({ message: "Please sign in as the commissioner." }, { status: 401 });
 
@@ -16,8 +25,9 @@ export async function POST(request: Request) {
     const admin = createAdminServerClient();
     const { data: payment, error: paymentError } = await admin
       .from("commissioner_pass_payments")
-      .select("id,pool_id,commissioner_id,status,amount_cents,paypal_capture_id")
+      .select("id,pool_id,commissioner_id,provider,status,amount_cents,paypal_capture_id")
       .eq("paypal_order_id", body.orderId)
+      .eq("provider", provider)
       .single();
     if (paymentError || !payment || payment.commissioner_id !== auth.user.id) {
       return Response.json({ message: "This PayPal order does not belong to your Commissioner Pass." }, { status: 403 });
@@ -31,13 +41,13 @@ export async function POST(request: Request) {
 
     let order;
     try {
-      await capturePayPalOrder(body.orderId, `${payment.id}-capture`);
+      await capturePayPalOrder(body.orderId, `${payment.id}-capture`, environment);
       // PayPal can return a minimal capture response. Fetch the canonical order
       // representation before validating and recording the payment.
-      order = await getPayPalOrder(body.orderId);
+      order = await getPayPalOrder(body.orderId, environment);
     } catch (captureError) {
       console.warn("PayPal capture call did not complete; checking order state", captureError);
-      order = await getPayPalOrder(body.orderId);
+      order = await getPayPalOrder(body.orderId, environment);
     }
 
     const { purchaseUnit, capture, customId, invoiceId, payerId } = completedCapture(order);
@@ -70,9 +80,13 @@ export async function POST(request: Request) {
       return Response.json({ message: "Payment was captured, but the pass needs support review. Do not pay again." }, { status: 500 });
     }
 
-    return Response.json({ message: "Sandbox payment confirmed. Your Commissioner Pass is active.", poolId: payment.pool_id });
+    return Response.json({
+      message: `${environment === "sandbox" ? "Sandbox payment" : "Payment"} confirmed. Your Commissioner Pass is active.`,
+      poolId: payment.pool_id,
+      environment,
+    });
   } catch (error) {
-    console.error("PayPal Sandbox capture failed", error);
-    return Response.json({ message: "PayPal could not confirm this sandbox payment." }, { status: 502 });
+    console.error("PayPal capture failed", error);
+    return Response.json({ message: "PayPal could not confirm this payment." }, { status: 502 });
   }
 }

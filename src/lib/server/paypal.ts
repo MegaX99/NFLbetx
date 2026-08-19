@@ -1,6 +1,12 @@
 import "server-only";
 
-const PAYPAL_SANDBOX_API = "https://api-m.sandbox.paypal.com";
+export type PayPalEnvironment = "sandbox" | "live";
+export type PayPalProvider = "paypal_sandbox" | "paypal_live";
+
+const PAYPAL_API: Record<PayPalEnvironment, string> = {
+  sandbox: "https://api-m.sandbox.paypal.com",
+  live: "https://api-m.paypal.com",
+};
 
 type PayPalLink = { href: string; rel: string; method?: string };
 type PayPalAmount = { currency_code: string; value: string };
@@ -36,18 +42,36 @@ export class PayPalApiError extends Error {
   }
 }
 
-function credentials() {
-  const clientId = process.env.PAYPAL_SANDBOX_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_SANDBOX_CLIENT_SECRET;
+export function paypalEnvironment(): PayPalEnvironment {
+  const configured = process.env.PAYPAL_ENVIRONMENT;
+  if (configured === "sandbox" || configured === "live") return configured;
+  if (configured) throw new Error("PAYPAL_ENVIRONMENT must be either sandbox or live.");
+
+  return process.env.VERCEL_ENV === "production" ? "live" : "sandbox";
+}
+
+export function paypalProvider(environment: PayPalEnvironment): PayPalProvider {
+  return environment === "live" ? "paypal_live" : "paypal_sandbox";
+}
+
+export function paypalCredentialsConfigured(environment: PayPalEnvironment) {
+  const prefix = environment === "live" ? "PAYPAL_LIVE" : "PAYPAL_SANDBOX";
+  return Boolean(process.env[`${prefix}_CLIENT_ID`] && process.env[`${prefix}_CLIENT_SECRET`]);
+}
+
+function credentials(environment: PayPalEnvironment) {
+  const prefix = environment === "live" ? "PAYPAL_LIVE" : "PAYPAL_SANDBOX";
+  const clientId = process.env[`${prefix}_CLIENT_ID`];
+  const clientSecret = process.env[`${prefix}_CLIENT_SECRET`];
   if (!clientId || !clientSecret) {
-    throw new Error("PayPal Sandbox credentials are not configured.");
+    throw new Error(`PayPal ${environment === "live" ? "Live" : "Sandbox"} credentials are not configured.`);
   }
   return { clientId, clientSecret };
 }
 
-async function accessToken() {
-  const { clientId, clientSecret } = credentials();
-  const response = await fetch(`${PAYPAL_SANDBOX_API}/v1/oauth2/token`, {
+async function accessToken(environment: PayPalEnvironment) {
+  const { clientId, clientSecret } = credentials(environment);
+  const response = await fetch(`${PAYPAL_API[environment]}/v1/oauth2/token`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -64,9 +88,9 @@ async function accessToken() {
   return data.access_token;
 }
 
-async function paypalRequest(path: string, init: RequestInit) {
-  const token = await accessToken();
-  const response = await fetch(`${PAYPAL_SANDBOX_API}${path}`, {
+async function paypalRequest(environment: PayPalEnvironment, path: string, init: RequestInit) {
+  const token = await accessToken(environment);
+  const response = await fetch(`${PAYPAL_API[environment]}${path}`, {
     ...init,
     headers: {
       Accept: "application/json",
@@ -90,8 +114,8 @@ export async function createPayPalOrder(input: {
   amountCents: number;
   returnUrl: string;
   cancelUrl: string;
-}) {
-  return paypalRequest("/v2/checkout/orders", {
+}, environment: PayPalEnvironment) {
+  return paypalRequest(environment, "/v2/checkout/orders", {
     method: "POST",
     headers: { "PayPal-Request-Id": input.paymentId },
     body: JSON.stringify({
@@ -118,8 +142,8 @@ export async function createPayPalOrder(input: {
   });
 }
 
-export async function capturePayPalOrder(orderId: string, requestId: string) {
-  return paypalRequest(`/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
+export async function capturePayPalOrder(orderId: string, requestId: string, environment: PayPalEnvironment) {
+  return paypalRequest(environment, `/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
     method: "POST",
     headers: {
       "PayPal-Request-Id": requestId,
@@ -129,8 +153,8 @@ export async function capturePayPalOrder(orderId: string, requestId: string) {
   });
 }
 
-export async function getPayPalOrder(orderId: string) {
-  return paypalRequest(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, { method: "GET" });
+export async function getPayPalOrder(orderId: string, environment: PayPalEnvironment) {
+  return paypalRequest(environment, `/v2/checkout/orders/${encodeURIComponent(orderId)}`, { method: "GET" });
 }
 
 export function completedCapture(order: PayPalOrder) {
