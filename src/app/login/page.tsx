@@ -40,7 +40,7 @@ export default function LoginPage() {
 
       if (mode === "forgot") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: "https://nf-lbetx.vercel.app/reset-password",
+          redirectTo: new URL("/reset-password", window.location.origin).toString(),
         });
         if (error) throw error;
         await supabase.rpc("record_auth_event", {
@@ -50,7 +50,7 @@ export default function LoginPage() {
         setMessage("If an NFLbetx account exists for that email, a password-reset message is on its way.");
       } else if (mode === "signup") {
         const pendingInvite = rememberPendingInvite(inviteCode);
-        const confirmationUrl = new URL("/login", "https://nf-lbetx.vercel.app");
+        const confirmationUrl = new URL("/login", window.location.origin);
         confirmationUrl.searchParams.set("confirmed", "1");
         if (pendingInvite) confirmationUrl.searchParams.set("invite", pendingInvite);
         const { data, error } = await supabase.auth.signUp({

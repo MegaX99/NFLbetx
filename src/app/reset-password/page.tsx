@@ -27,6 +27,32 @@ export default function ResetPasswordPage() {
     });
 
     async function checkRecoverySession() {
+      const code = new URLSearchParams(window.location.search).get("code");
+
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (!active) return;
+
+        if (!exchangeError) {
+          window.history.replaceState(null, "", window.location.pathname);
+          setReady(true);
+          setLoading(false);
+          return;
+        }
+
+        // The auth-state listener may have completed the exchange first.
+        const { data } = await supabase.auth.getUser();
+        if (!active) return;
+        if (data.user) {
+          window.history.replaceState(null, "", window.location.pathname);
+          setReady(true);
+        } else {
+          setMessage("This reset link could not be completed. Request a new one from the login page.");
+        }
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.getUser();
       if (!active) return;
       if (data.user) setReady(true);

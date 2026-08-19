@@ -2,14 +2,26 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase";
 import { PlayerAvatar } from "@/components/player-avatar";
+import { commissionerPassTier, formatPassPrice } from "@/lib/commissioner-pass";
 
 type Pool = { id: string; name: string; code: string; season: number; commissioner_id: string; avatar_path: string | null };
 type Member = { user_id: string; role: "commissioner" | "member"; joined_at: string; display_name: string; avatar_path: string | null; picks: number };
 type Activity = { id: string; event_type: string; message: string; created_at: string; actor_name: string | null; subject_name: string | null };
+type CommissionerPass = {
+  status: "pending" | "active" | "suspended" | "refunded";
+  paid_capacity: number;
+  amount_paid_cents: number;
+  due_at: string;
+  paid_at: string | null;
+};
+type PayPalConfig = {
+  environment: "sandbox" | "live" | null;
+  configured: boolean;
+};
 
 const PUBLIC_SITE_URL = "https://nf-lbetx.vercel.app";
 
@@ -43,11 +55,16 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
   const [pool, setPool] = useState<Pool | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [commissionerPass, setCommissionerPass] = useState<CommissionerPass | null>(null);
+  const [paypalConfig, setPayPalConfig] = useState<PayPalConfig>({ environment: null, configured: false });
+  const [passIsOverdue, setPassIsOverdue] = useState(false);
   const [gameCount, setGameCount] = useState(0);
   const [poolName, setPoolName] = useState("");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [checkoutWorking, setCheckoutWorking] = useState(false);
   const [notice, setNotice] = useState("");
+  const paypalReturnHandled = useRef(false);
 
   async function load(currentUser?: User) {
     const supabase = createClient();
@@ -69,11 +86,15 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     setPool(currentPool);
     setPoolName(currentPool.name);
 
-    const [{ data: memberRows }, { data: entryRows }, gameResult, activityResult] = await Promise.all([
+    const [{ data: memberRows }, { data: entryRows }, gameResult, activityResult, passResult, paypalConfigResult] = await Promise.all([
       supabase.from("pool_members").select("user_id,role,joined_at").eq("pool_id", poolId).order("joined_at"),
       supabase.from("entries").select("id,user_id").eq("pool_id", poolId).eq("is_active", true),
       supabase.from("games").select("id", { count: "exact", head: true }).eq("season", currentPool.season).eq("week", 1),
       supabase.rpc("get_pool_activity", { target_pool_id: poolId }),
+      supabase.from("commissioner_passes").select("status,paid_capacity,amount_paid_cents,due_at,paid_at").eq("pool_id", poolId).maybeSingle(),
+      fetch("/api/paypal/config", { cache: "no-store" })
+        .then(async (response) => response.ok ? await response.json() as PayPalConfig : null)
+        .catch(() => null),
     ]);
 
     const userIds = (memberRows ?? []).map((row) => row.user_id);
@@ -98,6 +119,10 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     })));
     setGameCount(gameResult.count ?? 0);
     setActivity((activityResult.data ?? []) as Activity[]);
+    const pass = (passResult.data as CommissionerPass | null) ?? null;
+    setCommissionerPass(pass);
+    setPayPalConfig(paypalConfigResult ?? { environment: null, configured: false });
+    setPassIsOverdue(Boolean(pass && pass.status !== "active" && new Date(pass.due_at).getTime() < Date.now()));
     setLoading(false);
   }
 
@@ -108,8 +133,141 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId]);
 
+  useEffect(() => {
+    if (paypalReturnHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("paypal") === "cancelled") {
+      paypalReturnHandled.current = true;
+      const noticeTimer = window.setTimeout(() => {
+        setNotice("PayPal checkout was cancelled. Nothing was charged.");
+      }, 0);
+      params.delete("paypal");
+      const query = params.toString();
+      window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+      return () => window.clearTimeout(noticeTimer);
+    }
+  }, [poolId]);
+
+  useEffect(() => {
+    if (!user || paypalReturnHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("token");
+    if (params.get("paypal") !== "approved" || !orderId) return;
+    paypalReturnHandled.current = true;
+
+    async function capturePayment() {
+      setCheckoutWorking(true);
+      setNotice("Confirming your PayPal payment...");
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        setNotice("Your sign-in expired before payment confirmation. Sign in again, then return to this pool.");
+        setCheckoutWorking(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/paypal/capture", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId }),
+        });
+        const result = await response.json() as { message?: string };
+        setNotice(result.message ?? (response.ok ? "Payment confirmed." : "Payment confirmation failed."));
+        if (response.ok) await load(user ?? undefined);
+      } catch {
+        setNotice("The payment could not be confirmed. Please try again; do not start another payment.");
+      } finally {
+        params.delete("paypal");
+        params.delete("token");
+        params.delete("PayerID");
+        const query = params.toString();
+        window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+        setCheckoutWorking(false);
+      }
+    }
+
+    capturePayment();
+    // The signed-in user and PayPal return parameters should trigger this once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, poolId]);
+
   const totalPicks = useMemo(() => members.reduce((sum, member) => sum + member.picks, 0), [members]);
   const avatar = publicAvatarUrl(pool?.avatar_path ?? null);
+  const requiredTier = commissionerPassTier(members.length);
+  const displayedTier = commissionerPass?.status === "active"
+    ? { capacity: commissionerPass.paid_capacity, priceCents: commissionerPass.amount_paid_cents }
+    : requiredTier;
+  const displayCapacity = displayedTier.capacity;
+  const remainingSpots = Math.max(0, displayCapacity - members.length);
+  const upgradeTier = commissionerPass?.status === "active"
+    ? commissionerPassTier(commissionerPass.paid_capacity + 1)
+    : requiredTier;
+  const checkoutAmountCents = commissionerPass?.status === "active"
+    ? Math.max(0, upgradeTier.priceCents - commissionerPass.amount_paid_cents)
+    : requiredTier.priceCents;
+  const checkoutIsAvailable = commissionerPass?.status !== "active" || remainingSpots === 0;
+  const paypalIsSandbox = paypalConfig.environment === "sandbox";
+
+  async function beginPayPalCheckout() {
+    if (!pool) return;
+    if (!paypalConfig.configured) {
+      setNotice("PayPal checkout is not configured for this environment yet.");
+      return;
+    }
+    setCheckoutWorking(true);
+    setNotice("");
+    const supabase = createClient();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      setNotice("Please sign in again before opening PayPal.");
+      setCheckoutWorking(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/paypal/orders", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ poolId: pool.id }),
+      });
+      const result = await response.json() as {
+        approvalUrl?: string;
+        captureReady?: boolean;
+        orderId?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        setNotice(result.message ?? "PayPal checkout could not be opened.");
+        setCheckoutWorking(false);
+        return;
+      }
+      if (result.captureReady && result.orderId) {
+        setNotice("Recovering your completed PayPal payment...");
+        const captureResponse = await fetch("/api/paypal/capture", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: result.orderId }),
+        });
+        const captureResult = await captureResponse.json() as { message?: string };
+        setNotice(captureResult.message ?? (captureResponse.ok ? "Payment confirmed." : "Payment confirmation failed."));
+        if (captureResponse.ok) await load(user ?? undefined);
+        setCheckoutWorking(false);
+        return;
+      }
+      if (!result.approvalUrl) {
+        setNotice(result.message ?? "PayPal checkout could not be opened.");
+        setCheckoutWorking(false);
+        return;
+      }
+      window.location.assign(result.approvalUrl);
+    } catch {
+      setNotice("PayPal checkout could not be reached.");
+      setCheckoutWorking(false);
+    }
+  }
 
   async function saveName(event: FormEvent) {
     event.preventDefault();
@@ -194,6 +352,73 @@ export function CommissionerDashboard({ poolId }: { poolId: string }) {
 
       <section className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[["Members", members.length], ["Active entries", members.length], ["Week 1 picks", totalPicks], ["Possible picks", members.length * gameCount]].map(([label, value]) => <div key={label} className="panel p-5"><p className="text-sm font-bold text-slate-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p></div>)}
+      </section>
+
+      <section className="panel mt-8 overflow-hidden">
+        <div className="grid gap-6 p-6 lg:grid-cols-[1.3fr_.7fr] lg:items-center">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="eyebrow">2026 Commissioner Pass</p>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide ${commissionerPass?.status === "active" ? "bg-lime-100 text-lime-800" : passIsOverdue ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>
+                {commissionerPass?.status === "active" ? "Paid" : passIsOverdue ? "Payment overdue" : "Payment due"}
+              </span>
+            </div>
+            <h2 className="mt-3 text-3xl font-black">{formatPassPrice(displayedTier.priceCents)} for up to {displayedTier.capacity} players</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+              Your commissioner counts as one player. Every five additional verified players above 12 adds $10 to this pool&apos;s season pass. Each pool is billed separately.
+            </p>
+            <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-200" aria-label={`${members.length} of ${displayCapacity} player spots used`}>
+              <div className="h-full rounded-full bg-lime-400 transition-all" style={{ width: `${Math.min(100, (members.length / Math.max(1, displayCapacity)) * 100)}%` }} />
+            </div>
+            <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm font-bold">
+              <span>{members.length} of {displayCapacity} spots used</span>
+              <span className="text-slate-500">{remainingSpots} {remainingSpots === 1 ? "spot" : "spots"} available</span>
+            </div>
+          </div>
+          <div className="rounded-2xl bg-slate-950 p-6 text-white">
+            <p className="text-sm font-bold text-slate-400">{commissionerPass?.status === "active" ? "Pass paid" : "Amount for current roster"}</p>
+            <p className="mt-2 text-4xl font-black text-lime-400">{formatPassPrice(displayedTier.priceCents)}</p>
+            <p className="mt-3 text-sm text-slate-300">
+              Due {commissionerPass ? new Date(commissionerPass.due_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "September 22, 2026"}
+            </p>
+            {commissionerPass?.status === "active" && (
+              <p className="mt-5 rounded-xl bg-white/10 px-4 py-3 text-sm font-bold">
+                Pass active for up to {commissionerPass.paid_capacity} players.
+              </p>
+            )}
+            {checkoutIsAvailable && (
+              <div className="mt-5">
+                {paypalConfig.environment === "sandbox" && (
+                  <p className="mb-3 rounded-xl border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-xs font-bold text-amber-200">
+                    Sandbox test only - no real money will move.
+                  </p>
+                )}
+                {paypalConfig.environment === "live" && (
+                  <p className="mb-3 rounded-xl border border-lime-300/40 bg-lime-300/10 px-4 py-3 text-xs font-bold text-lime-200">
+                    Secure live PayPal checkout - this payment will charge real money.
+                  </p>
+                )}
+                {!paypalConfig.configured && (
+                  <p className="mb-3 rounded-xl border border-red-300/40 bg-red-300/10 px-4 py-3 text-xs font-bold text-red-200">
+                    PayPal checkout is not configured for this environment.
+                  </p>
+                )}
+                <button type="button" onClick={beginPayPalCheckout} disabled={checkoutWorking || !paypalConfig.configured} className="w-full rounded-xl bg-[#ffc439] px-4 py-3 font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-60">
+                  {checkoutWorking
+                    ? `Opening PayPal${paypalIsSandbox ? " Sandbox" : ""}...`
+                    : `${commissionerPass?.status === "active" ? "Upgrade" : "Pay"} ${formatPassPrice(checkoutAmountCents)} with PayPal`}
+                </button>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  {commissionerPass?.status === "active"
+                    ? `Adds five spots, increasing this pass to ${upgradeTier.capacity} players.`
+                    : paypalIsSandbox
+                      ? "Use a PayPal sandbox buyer account. Live payments are disabled in this preview."
+                      : "You will review and approve the charge securely on PayPal."}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
